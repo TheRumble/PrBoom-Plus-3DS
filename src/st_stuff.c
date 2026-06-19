@@ -429,6 +429,79 @@ void ST_SetScaledWidth(void)
   ST_SCALED_OFFSETX = (SCREENWIDTH - ST_SCALED_WIDTH) / 2;
 }
 
+#ifdef __3DS__
+/*
+ * Copy a rectangle directly between software screen buffers.
+ *
+ * The older 3DS port had a V_CopyRect implementation that accepted
+ * separate source and destination positions. PrBoom+ does not, so
+ * the lower-screen status bar needs this explicit copy.
+ */
+static void ST_CopyBackgroundToBottom(
+    int x,
+    int y,
+    int width,
+    int height
+)
+{
+  int pixel_depth = V_GetPixelDepth();
+  byte *source;
+  byte *destination;
+  int row;
+
+  if (!screens[BG].data || !screens[5].data)
+    return;
+
+  if (pixel_depth <= 0)
+    return;
+
+  if (x < 0)
+  {
+    width += x;
+    x = 0;
+  }
+
+  if (y < 0)
+  {
+    height += y;
+    y = 0;
+  }
+
+  if (x + width > screens[BG].width)
+    width = screens[BG].width - x;
+
+  if (x + width > screens[5].width)
+    width = screens[5].width - x;
+
+  if (y + height > screens[BG].height)
+    height = screens[BG].height - y;
+
+  if (y + height > screens[5].height)
+    height = screens[5].height - y;
+
+  if (width <= 0 || height <= 0)
+    return;
+
+  source =
+      screens[BG].data
+      + y * screens[BG].byte_pitch
+      + x * pixel_depth;
+
+  destination =
+      screens[5].data
+      + y * screens[5].byte_pitch
+      + x * pixel_depth;
+
+  for (row = 0; row < height; row++)
+  {
+    memcpy(destination, source, width * pixel_depth);
+
+    source += screens[BG].byte_pitch;
+    destination += screens[5].byte_pitch;
+  }
+}
+#endif
+
 static void ST_refreshBackground(void)
 {
   int y = ST_Y;
@@ -455,7 +528,29 @@ static void ST_refreshBackground(void)
            displayplayer ? CR_LIMIT+displayplayer : CR_DEFAULT,
            displayplayer ? (VPT_TRANS | VPT_ALIGN_BOTTOM) : flags);
       }
-      V_CopyRect(BG, FG, ST_X + ST_SCALED_OFFSETX, SCREENHEIGHT - ST_SCALED_HEIGHT, ST_SCALED_WIDTH, ST_SCALED_HEIGHT, VPT_NONE);
+#ifdef __3DS__
+      if (I_BottomScreenIsMap())
+      {
+        ST_CopyBackgroundToBottom(
+            ST_X + ST_SCALED_OFFSETX,
+            SCREENHEIGHT - ST_SCALED_HEIGHT,
+            ST_SCALED_WIDTH,
+            ST_SCALED_HEIGHT
+        );
+      }
+      else
+#endif
+      {
+        V_CopyRect(
+            BG,
+            FG,
+            ST_X + ST_SCALED_OFFSETX,
+            SCREENHEIGHT - ST_SCALED_HEIGHT,
+            ST_SCALED_WIDTH,
+            ST_SCALED_HEIGHT,
+            VPT_NONE
+        );
+      }
     }
 }
 
@@ -935,6 +1030,15 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
    * completely by the call from D_Display
    * proff - really do it
    */
+#ifdef __3DS__
+  /*
+   * The lower screen is a separate software buffer, so redraw its
+   * small status-bar area completely while Map mode is active.
+   */
+  if (I_BottomScreenIsMap())
+    st_firsttime = true;
+#endif
+
   st_firsttime = st_firsttime || refresh || fullmenu;
 
   ST_doPaletteStuff();  // Do red-/gold-shifts from damage/items

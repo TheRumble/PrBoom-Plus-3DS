@@ -81,6 +81,11 @@ typedef enum
 
 static ctr_input_mode_t ctr_input_mode = CTR_INPUT_MAP;
 
+int I_BottomScreenIsMap(void)
+{
+  return ctr_input_mode == CTR_INPUT_MAP;
+}
+
 // 3DS touchpad (mouse)
 static int ctr_mouse_pos[2] = { 0, 0 };
 
@@ -252,19 +257,138 @@ extern const unsigned char _acbottom_on[];
 //
 static void I_DrawBottomScreen (void)
 {
-  u8 *framebuf = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+  u8 *framebuf =
+      gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+
   if (ctr_input_mode == CTR_INPUT_MAP)
+  {
+    const int src_width = screens[5].width;
+    const int src_height = screens[5].height;
+    int x;
+    int y;
+
+    if (!screens[5].data || src_width <= 0 || src_height <= 0)
     {
-        memset(framebuf, 0, 240 * 320 * 3);
+      memset(framebuf, 0, 240 * 320 * 3);
+      return;
     }
-    else
+
+    switch (V_GetMode())
     {
-        memcpy(framebuf,
-               ctr_input_mode == CTR_INPUT_KEYBOARD
-                   ? _acbottom_on
-                   : _acbottom_off,
-               240 * 320 * 3);
+      case VID_MODE15:
+      {
+        const u16 *source = (const u16 *)screens[5].data;
+
+        for (x = 0; x < 320; x++)
+        {
+          const int src_x = x * src_width / 320;
+
+          for (y = 0; y < 240; y++)
+          {
+            const int src_y =
+                src_height - 1 - (y * src_height / 240);
+
+            const u16 pixel =
+                source[
+                    src_y * screens[5].short_pitch + src_x
+                ];
+
+            u8 blue = pixel & 0x1f;
+            u8 green = (pixel >> 5) & 0x1f;
+            u8 red = (pixel >> 10) & 0x1f;
+
+            const int destination = (x * 240 + y) * 3;
+
+            blue = (blue << 3) | (blue >> 2);
+            green = (green << 3) | (green >> 2);
+            red = (red << 3) | (red >> 2);
+
+            framebuf[destination + 0] = blue;
+            framebuf[destination + 1] = green;
+            framebuf[destination + 2] = red;
+          }
+        }
+
+        break;
+      }
+
+      case VID_MODE16:
+      {
+        const u16 *source = (const u16 *)screens[5].data;
+
+        for (x = 0; x < 320; x++)
+        {
+          const int src_x = x * src_width / 320;
+
+          for (y = 0; y < 240; y++)
+          {
+            const int src_y =
+                src_height - 1 - (y * src_height / 240);
+
+            const u16 pixel =
+                source[
+                    src_y * screens[5].short_pitch + src_x
+                ];
+
+            u8 blue = pixel & 0x1f;
+            u8 green = (pixel >> 5) & 0x3f;
+            u8 red = (pixel >> 11) & 0x1f;
+
+            const int destination = (x * 240 + y) * 3;
+
+            blue = (blue << 3) | (blue >> 2);
+            green = (green << 2) | (green >> 4);
+            red = (red << 3) | (red >> 2);
+
+            framebuf[destination + 0] = blue;
+            framebuf[destination + 1] = green;
+            framebuf[destination + 2] = red;
+          }
+        }
+
+        break;
+      }
+
+      default:
+      {
+        const u32 *source = (const u32 *)screens[5].data;
+
+        for (x = 0; x < 320; x++)
+        {
+          const int src_x = x * src_width / 320;
+
+          for (y = 0; y < 240; y++)
+          {
+            const int src_y =
+                src_height - 1 - (y * src_height / 240);
+
+            const u32 pixel =
+                source[
+                    src_y * screens[5].int_pitch + src_x
+                ];
+
+            const int destination = (x * 240 + y) * 3;
+
+            framebuf[destination + 0] = pixel & 0xff;
+            framebuf[destination + 1] = (pixel >> 8) & 0xff;
+            framebuf[destination + 2] = (pixel >> 16) & 0xff;
+          }
+        }
+
+        break;
+      }
     }
+
+    return;
+  }
+
+  memcpy(
+      framebuf,
+      ctr_input_mode == CTR_INPUT_KEYBOARD
+          ? _acbottom_on
+          : _acbottom_off,
+      240 * 320 * 3
+  );
 }
 
 //
@@ -640,6 +764,15 @@ void I_InitScreenResolution(void)
   screens[4].short_pitch = SCREENPITCH / V_GetModePixelDepth(VID_MODE16);
   screens[4].int_pitch = SCREENPITCH / V_GetModePixelDepth(VID_MODE32);
 
+  // Bottom-screen automap and status bar buffer
+  screens[5].width = SCREENWIDTH;
+  screens[5].height = SCREENHEIGHT;
+  screens[5].byte_pitch = SCREENPITCH;
+  screens[5].short_pitch =
+      SCREENPITCH / V_GetModePixelDepth(VID_MODE16);
+  screens[5].int_pitch =
+      SCREENPITCH / V_GetModePixelDepth(VID_MODE32);
+
   I_InitBuffersRes();
 
   lprintf(LO_INFO,"I_InitScreenResolution: Using resolution %dx%d\n", SCREENWIDTH, SCREENHEIGHT);
@@ -725,6 +858,15 @@ void I_UpdateVideoMode(void)
     screens[0].int_pitch = screen_pitch / V_GetModePixelDepth(VID_MODE32);
 
     V_AllocScreens();
+
+    if (screens[5].data)
+    {
+      memset(
+          screens[5].data,
+          0,
+          screens[5].byte_pitch * screens[5].height
+      );
+    }
 
     R_InitBuffer(SCREENWIDTH, SCREENHEIGHT);
   }

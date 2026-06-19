@@ -83,4 +83,9 @@ extern int vanilla_keymap;
 
 void UpdateGrab(void);
 
+
+#ifdef __3DS__
+int I_BottomScreenIsMap(void);
+#endif
+
 #endif

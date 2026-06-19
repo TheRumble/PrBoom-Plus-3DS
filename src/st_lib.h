@@ -38,11 +38,20 @@
 #include "r_defs.h"
 #include "v_video.h"  // color ranges
 
+#ifdef __3DS__
+#include "i_video.h"
+#endif
+
 //
 // Background and foreground screen numbers
 //
 #define BG 4
+
+#ifdef __3DS__
+#define FG (I_BottomScreenIsMap() ? 5 : 0)
+#else
 #define FG 0
+#endif
 
 //
 // Typedefs of widgets

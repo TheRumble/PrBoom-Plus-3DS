@@ -446,7 +446,11 @@ void D_Display (fixed_t frac)
 
       ST_Drawer(
           ((viewheight != SCREENHEIGHT)
-          || ((automapmode & am_active) && !(automapmode & am_overlay))),
+          || ((automapmode & am_active) && !(automapmode & am_overlay))
+#ifdef __3DS__
+          || I_BottomScreenIsMap()
+#endif
+          ),
           redrawborderstuff || BorderNeedRefresh,
           (menuactive == mnact_full));
 
