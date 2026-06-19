@@ -45,7 +45,7 @@
 #ifdef __cplusplus
 typedef bool dboolean;
 #else
-typedef enum {false, true} dboolean;
+typedef int dboolean;
 #endif
 typedef unsigned char byte;
 #endif

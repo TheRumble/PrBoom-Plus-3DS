@@ -269,3 +269,9 @@ endef
 #---------------------------------------------------------------------------------------
 endif
 #---------------------------------------------------------------------------------------
+
+CFLAGS += -std=gnu17 -Wno-error=incompatible-pointer-types
+
+CFLAGS += -std=gnu17 -Wno-error=incompatible-pointer-types
+
+CFLAGS += -include stdbool.h
