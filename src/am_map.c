@@ -49,6 +49,7 @@
 #include "p_maputl.h"
 #include "w_wad.h"
 #include "v_video.h"
+#include "i_video.h"
 #include "p_spec.h"
 #include "am_map.h"
 #include "d_deh.h"    // Ty 03/27/98 - externalizations
@@ -112,8 +113,11 @@ const char *map_things_appearance_list[map_things_appearance_max] =
 };
 
 // drawing stuff
-#define FB    0
-
+#ifdef __3DS__
+#define FB (I_BottomScreenIsMap() ? 5 : 0)
+#else
+#define FB 0
+#endif
 // scale on entry
 #define INITSCALEMTOF (.2*FRACUNIT)
 // how much the automap moves window per tic in frame-buffer coordinates
@@ -509,6 +513,16 @@ void AM_SetScale(void)
 //
 void AM_SetPosition(void)
 {
+#ifdef __3DS__
+  if (I_BottomScreenIsMap())
+  {
+    f_x = 0;
+    f_y = 0;
+    f_w = screens[5].width;
+    f_h = screens[5].height - ST_SCALED_HEIGHT;
+  }
+  else
+#endif
   if (automapmode & am_overlay)
   {
     f_x = map_overlay_pos_x * SCREENWIDTH / 320;
@@ -1156,6 +1170,68 @@ static dboolean AM_clipMline
 }
 #undef DOOUTCODE
 
+/*
+ * The normal PrBoom+ line renderer always plots into screen 0.
+ * Use a screen-aware Bresenham renderer for the bottom automap.
+ */
+static void AM_drawFlineToFB(
+    fline_t *line,
+    int color,
+    int antialias
+)
+{
+#ifdef __3DS__
+  if (I_BottomScreenIsMap())
+  {
+    int x0 = line->a.x;
+    int y0 = line->a.y;
+    const int x1 = line->b.x;
+    const int y1 = line->b.y;
+    const int dx = x0 < x1 ? x1 - x0 : x0 - x1;
+    const int sx = x0 < x1 ? 1 : -1;
+    const int distance_y = y0 < y1 ? y1 - y0 : y0 - y1;
+    const int dy = -distance_y;
+    const int sy = y0 < y1 ? 1 : -1;
+    int error = dx + dy;
+
+    for (;;)
+    {
+      if ((unsigned)x0 < (unsigned)screens[FB].width &&
+          (unsigned)y0 < (unsigned)screens[FB].height)
+      {
+        V_PlotPixel(FB, x0, y0, (byte)color);
+      }
+
+      if (x0 == x1 && y0 == y1)
+        break;
+
+      {
+        const int twice_error = error * 2;
+
+        if (twice_error >= dy)
+        {
+          error += dy;
+          x0 += sx;
+        }
+
+        if (twice_error <= dx)
+        {
+          error += dx;
+          y0 += sy;
+        }
+      }
+    }
+
+    return;
+  }
+#endif
+
+  if (antialias)
+    V_DrawLineWu(line, color);
+  else
+    V_DrawLine(line, color);
+}
+
 //
 // AM_drawMline()
 //
@@ -1180,11 +1256,7 @@ static void AM_drawMline
 
   if (AM_clipMline(ml, &fl))
   {
-    // draws it on frame buffer using fb coords
-    if (map_use_multisamling)
-      V_DrawLineWu(&fl, color);
-    else
-      V_DrawLine(&fl, color);
+    AM_drawFlineToFB(&fl, color, map_use_multisamling);
   }
 }
 
@@ -2184,7 +2256,7 @@ static void AM_drawCrosshair(int color)
   line.b.y = f_y+(f_h/2);
   AM_SetFPointFloatValue(&line.a);
   AM_SetFPointFloatValue(&line.b);
-  V_DrawLine(&line, color);
+  AM_drawFlineToFB(&line, color, false);
 
   line.a.x = f_x+(f_w/2);
   line.a.y = f_y+(f_h/2)-1;
@@ -2192,7 +2264,7 @@ static void AM_drawCrosshair(int color)
   line.b.y = f_y+(f_h/2)+1;
   AM_SetFPointFloatValue(&line.a);
   AM_SetFPointFloatValue(&line.b);
-  V_DrawLine(&line, color);
+  AM_drawFlineToFB(&line, color, false);
 }
 
 void M_ChangeMapGridSize(void)
@@ -2301,7 +2373,12 @@ void AM_Drawer (void)
 
   AM_setFrameVariables();
 
-  if (!(automapmode & am_overlay)) // cph - If not overlay mode, clear background for the automap
+  #ifdef __3DS__
+  if (I_BottomScreenIsMap() ||
+      !(automapmode & am_overlay))
+#else
+  if (!(automapmode & am_overlay))
+#endif // cph - If not overlay mode, clear background for the automap
     V_FillRect(FB, f_x, f_y, f_w, f_h, (byte)mapcolor_back); //jff 1/5/98 background default color
 
   if (map_textured)

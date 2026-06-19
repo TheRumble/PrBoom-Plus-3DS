@@ -36,6 +36,13 @@
 #include "doomstat.h"
 #include "hu_stuff.h"
 #include "hu_lib.h"
+
+#ifdef __3DS__
+#include "i_video.h"
+#define HU_AUTOMAP_TEXT_SCREEN     (I_BottomScreenIsMap() ? 5 : 0)
+#else
+#define HU_AUTOMAP_TEXT_SCREEN 0
+#endif
 #include "hu_tracers.h"
 #include "st_stuff.h" /* jff 2/16/98 need loc of status bar */
 #include "s_sound.h"
@@ -2404,7 +2411,7 @@ void HU_Drawer(void)
     if ((!(automapmode & am_overlay) || (viewheight != SCREENHEIGHT)) && !drawTimeSTSwidgets())
     {
       // map title
-      HUlib_drawTextLine(&w_title, false);
+      HUlib_drawTextLineOnScreen(&w_title, false, HU_AUTOMAP_TEXT_SCREEN);
     }
 
     //jff 2/16/98 output new coord display
@@ -2415,9 +2422,9 @@ void HU_Drawer(void)
       //e6y: speedup
       if (!realframe)
       {
-        HUlib_drawTextLine(&w_coordx, false);
-        HUlib_drawTextLine(&w_coordy, false);
-        HUlib_drawTextLine(&w_coordz, false);
+        HUlib_drawTextLineOnScreen(&w_coordx, false, HU_AUTOMAP_TEXT_SCREEN);
+        HUlib_drawTextLineOnScreen(&w_coordy, false, HU_AUTOMAP_TEXT_SCREEN);
+        HUlib_drawTextLineOnScreen(&w_coordz, false, HU_AUTOMAP_TEXT_SCREEN);
       }
       else
       {
@@ -2426,7 +2433,7 @@ void HU_Drawer(void)
         s = hud_coordstrx;
         while (*s)
           HUlib_addCharToTextLine(&w_coordx, *(s++));
-        HUlib_drawTextLine(&w_coordx, false);
+        HUlib_drawTextLineOnScreen(&w_coordx, false, HU_AUTOMAP_TEXT_SCREEN);
 
         //jff 3/3/98 split coord display into x,y,z lines
         // y-coord
@@ -2435,7 +2442,7 @@ void HU_Drawer(void)
         s = hud_coordstry;
         while (*s)
           HUlib_addCharToTextLine(&w_coordy, *(s++));
-        HUlib_drawTextLine(&w_coordy, false);
+        HUlib_drawTextLineOnScreen(&w_coordy, false, HU_AUTOMAP_TEXT_SCREEN);
 
         //jff 3/3/98 split coord display into x,y,z lines
         //jff 2/22/98 added z
@@ -2445,7 +2452,7 @@ void HU_Drawer(void)
         s = hud_coordstrz;
         while (*s)
           HUlib_addCharToTextLine(&w_coordz, *(s++));
-        HUlib_drawTextLine(&w_coordz, false);
+        HUlib_drawTextLineOnScreen(&w_coordz, false, HU_AUTOMAP_TEXT_SCREEN);
       }
     }
 
@@ -2462,7 +2469,7 @@ void HU_Drawer(void)
       s = str;
       while (*s)
         HUlib_addCharToTextLine(&w_map_monsters, *(s++));
-      HUlib_drawTextLine(&w_map_monsters, false);
+      HUlib_drawTextLineOnScreen(&w_map_monsters, false, HU_AUTOMAP_TEXT_SCREEN);
 
       sprintf(str, "Secrets: \x1b%c%d/%d", '0' + hudcolor_mapstat_value,
         players[consoleplayer].secretcount, totalsecret);
@@ -2470,7 +2477,7 @@ void HU_Drawer(void)
       s = str;
       while (*s)
         HUlib_addCharToTextLine(&w_map_secrets, *(s++));
-      HUlib_drawTextLine(&w_map_secrets, false);
+      HUlib_drawTextLineOnScreen(&w_map_secrets, false, HU_AUTOMAP_TEXT_SCREEN);
 
       sprintf(str, "Items: \x1b%c%d/%d", '0' + hudcolor_mapstat_value,
         players[consoleplayer].itemcount, totalitems);
@@ -2478,14 +2485,14 @@ void HU_Drawer(void)
       s = str;
       while (*s)
         HUlib_addCharToTextLine(&w_map_items, *(s++));
-      HUlib_drawTextLine(&w_map_items, false);
+      HUlib_drawTextLineOnScreen(&w_map_items, false, HU_AUTOMAP_TEXT_SCREEN);
 
       sprintf(str, "%02d:%02d:%02d", time/3600, (time%3600)/60, time%60);
       HUlib_clearTextLine(&w_map_time);
       s = str;
       while (*s)
         HUlib_addCharToTextLine(&w_map_time, *(s++));
-      HUlib_drawTextLine(&w_map_time, false);
+      HUlib_drawTextLineOnScreen(&w_map_time, false, HU_AUTOMAP_TEXT_SCREEN);
 
       if (totalleveltimes > 0)
       {
@@ -2494,7 +2501,7 @@ void HU_Drawer(void)
         s = str;
         while (*s)
           HUlib_addCharToTextLine(&w_map_totaltime, *(s++));
-        HUlib_drawTextLine(&w_map_totaltime, false);
+        HUlib_drawTextLineOnScreen(&w_map_totaltime, false, HU_AUTOMAP_TEXT_SCREEN);
       }
     }
   }

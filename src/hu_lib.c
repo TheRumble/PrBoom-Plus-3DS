@@ -151,6 +151,8 @@ static dboolean HUlib_delCharFromTextLine(hu_textline_t* t)
 // Passed the hu_textline_t and flag whether to draw a cursor
 // Returns nothing
 //
+static int hu_text_screen = FG;
+
 void HUlib_drawTextLine
 ( hu_textline_t* l,
   dboolean drawcursor )
@@ -205,7 +207,7 @@ void HUlib_drawTextLine
         break;
       // killough 1/18/98 -- support multiple lines:
       // CPhipps - patch drawing updated
-      V_DrawNumPatch(x, y, FG, l->f[c - l->sc].lumpnum, l->cm, VPT_TRANS | l->flags);
+      V_DrawNumPatch(x, y, hu_text_screen, l->f[c - l->sc].lumpnum, l->cm, VPT_TRANS | l->flags);
       x += w;
     }
     else
@@ -222,8 +224,21 @@ void HUlib_drawTextLine
   {
     // killough 1/18/98 -- support multiple lines
     // CPhipps - patch drawing updated
-    V_DrawNumPatch(x, y, FG, l->f['_' - l->sc].lumpnum, CR_DEFAULT, VPT_NONE | l->flags);
+    V_DrawNumPatch(x, y, hu_text_screen, l->f['_' - l->sc].lumpnum, CR_DEFAULT, VPT_NONE | l->flags);
   }
+}
+
+void HUlib_drawTextLineOnScreen(
+    hu_textline_t *l,
+    dboolean drawcursor,
+    int screen
+)
+{
+  const int previous_screen = hu_text_screen;
+
+  hu_text_screen = screen;
+  HUlib_drawTextLine(l, drawcursor);
+  hu_text_screen = previous_screen;
 }
 
 //

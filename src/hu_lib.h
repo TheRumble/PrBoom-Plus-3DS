@@ -167,6 +167,12 @@ dboolean HUlib_addCharToTextLine(hu_textline_t *t, char ch);
 // draws tline
 void HUlib_drawTextLine(hu_textline_t *l, dboolean drawcursor);
 
+void HUlib_drawTextLineOnScreen(
+    hu_textline_t *l,
+    dboolean drawcursor,
+    int screen
+);
+
 // erases text line
 void HUlib_eraseTextLine(hu_textline_t *l);
 

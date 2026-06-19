@@ -86,6 +86,9 @@ extern int screenblocks;
 static int ctr_saved_screenblocks = 10;
 static int ctr_previous_map_mode = -1;
 
+static int ctr_bottom_automap_session = 0;
+static enum automapmode_e ctr_saved_automapmode;
+
 int I_BottomScreenIsMap(void)
 {
   return ctr_input_mode == CTR_INPUT_MAP;
@@ -122,6 +125,105 @@ static void I_UpdateBottomScreenView(void)
 
   ctr_previous_map_mode = map_mode;
 }
+
+/*
+ * Keep a live, player-following automap active while the lower screen
+ * is in Map mode. Restore the user's prior automap state when leaving.
+ */
+/*
+ * AM_Start expects the selected player to already have a live mobj.
+ * GS_LEVEL can become active slightly before that object is created,
+ * so wait until the player is genuinely ready.
+ */
+static int I_BottomAutomapPlayerReady(void)
+{
+  int pnum = consoleplayer;
+
+  if (pnum < 0 ||
+      pnum >= MAXPLAYERS ||
+      !playeringame[pnum])
+  {
+    for (pnum = 0; pnum < MAXPLAYERS; pnum++)
+    {
+      if (playeringame[pnum])
+        break;
+    }
+  }
+
+  return pnum < MAXPLAYERS &&
+         players[pnum].mo != NULL;
+}
+
+/*
+ * Keep a live, player-following automap active while the lower screen
+ * is in Map mode. Restore the user's prior automap state when leaving.
+ */
+static void I_UpdateBottomAutomap(void)
+{
+  if (gamestate != GS_LEVEL)
+    return;
+
+  if (I_BottomScreenIsMap())
+  {
+    /*
+     * Do not call AM_Start during the brief level-loading interval
+     * before the player's map object exists.
+     */
+    if (!I_BottomAutomapPlayerReady())
+      return;
+
+    if (!ctr_bottom_automap_session)
+    {
+      ctr_saved_automapmode = automapmode;
+
+      /*
+       * Restart it once so its dimensions are initialized using the
+       * dedicated bottom-screen drawing area.
+       */
+      if (automapmode & am_active)
+        AM_Stop();
+
+      AM_Start();
+      ctr_bottom_automap_session = 1;
+    }
+    else if (!(automapmode & am_active))
+    {
+      /*
+       * The normal map key may stop it. Bottom Map mode starts it
+       * again because the lower display always needs the automap.
+       */
+      AM_Start();
+    }
+
+    /*
+     * Keep first-person gameplay visible on top and keep the lower
+     * automap centered on the player.
+     */
+    automapmode |= am_overlay;
+    automapmode |= am_follow;
+  }
+  else if (ctr_bottom_automap_session)
+  {
+    if (automapmode & am_active)
+      AM_Stop();
+
+    automapmode =
+        ctr_saved_automapmode & ~am_active;
+
+    if (ctr_saved_automapmode & am_active)
+    {
+      AM_Start();
+      automapmode = ctr_saved_automapmode;
+    }
+    else
+    {
+      automapmode = ctr_saved_automapmode;
+    }
+
+    ctr_bottom_automap_session = 0;
+  }
+}
+
 
 // 3DS touchpad (mouse)
 static int ctr_mouse_pos[2] = { 0, 0 };
@@ -436,6 +538,7 @@ void I_StartTic (void)
 {
   I_GetEvent();
   I_UpdateBottomScreenView();
+  I_UpdateBottomAutomap();
 
   I_ReadMouse();
 
