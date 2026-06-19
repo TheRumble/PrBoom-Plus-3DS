@@ -72,8 +72,14 @@
 
 #include <3ds.h>
 
-// 0 = mouse, 1 = keyboard
-static int ctr_input_mode = 0;
+typedef enum
+{
+    CTR_INPUT_MAP = 0,
+    CTR_INPUT_MOUSE,
+    CTR_INPUT_KEYBOARD
+} ctr_input_mode_t;
+
+static ctr_input_mode_t ctr_input_mode = CTR_INPUT_MAP;
 
 // 3DS touchpad (mouse)
 static int ctr_mouse_pos[2] = { 0, 0 };
@@ -150,11 +156,11 @@ static void I_GetEvent(void)
 
   if((keys_down & KEY_TOUCH) && I_IsPointInRect(touch.px, touch.py, 32, 208, 120, 240))
   {
-    ctr_input_mode = !ctr_input_mode;
+    ctr_input_mode = (ctr_input_mode + 1) % 3;
     return;
   }
 
-  if(ctr_input_mode) // Keyboard
+  if (ctr_input_mode == CTR_INPUT_KEYBOARD) // Keyboard
   {
     for(int y = 0; y < 14; y++)
     {
@@ -182,9 +188,8 @@ static void I_GetEvent(void)
       event.data1 = ctr_key_down;
       D_PostEvent(&event);
     }
-  }
-  else // Mouse
-  {
+  } else if (ctr_input_mode == CTR_INPUT_MOUSE) // Mouse
+{
     if(mouse_currently_grabbed)
     {
       // Reset mouse buttons state
@@ -248,7 +253,18 @@ extern const unsigned char _acbottom_on[];
 static void I_DrawBottomScreen (void)
 {
   u8 *framebuf = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
-  memcpy(framebuf, ctr_input_mode ? _acbottom_on : _acbottom_off, 240*320*3);
+  if (ctr_input_mode == CTR_INPUT_MAP)
+    {
+        memset(framebuf, 0, 240 * 320 * 3);
+    }
+    else
+    {
+        memcpy(framebuf,
+               ctr_input_mode == CTR_INPUT_KEYBOARD
+                   ? _acbottom_on
+                   : _acbottom_off,
+               240 * 320 * 3);
+    }
 }
 
 //
