@@ -81,9 +81,46 @@ typedef enum
 
 static ctr_input_mode_t ctr_input_mode = CTR_INPUT_MAP;
 
+extern int screenblocks;
+
+static int ctr_saved_screenblocks = 10;
+static int ctr_previous_map_mode = -1;
+
 int I_BottomScreenIsMap(void)
 {
   return ctr_input_mode == CTR_INPUT_MAP;
+}
+
+/*
+ * Use a full-height top-screen view while the automap and status bar
+ * occupy the bottom screen. Restore the user's previous view size
+ * when switching to Mouse or Keyboard mode.
+ */
+static void I_UpdateBottomScreenView(void)
+{
+  const int map_mode = I_BottomScreenIsMap();
+
+  if (map_mode == ctr_previous_map_mode)
+    return;
+
+  if (map_mode)
+  {
+    ctr_saved_screenblocks = screenblocks;
+
+    if (ctr_saved_screenblocks < 3 ||
+        ctr_saved_screenblocks > 11)
+    {
+      ctr_saved_screenblocks = 10;
+    }
+
+    R_SetViewSize(11);
+  }
+  else if (ctr_previous_map_mode == 1)
+  {
+    R_SetViewSize(ctr_saved_screenblocks);
+  }
+
+  ctr_previous_map_mode = map_mode;
 }
 
 // 3DS touchpad (mouse)
@@ -398,6 +435,7 @@ static void I_DrawBottomScreen (void)
 void I_StartTic (void)
 {
   I_GetEvent();
+  I_UpdateBottomScreenView();
 
   I_ReadMouse();
 
