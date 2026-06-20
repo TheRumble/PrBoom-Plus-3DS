@@ -61,6 +61,16 @@
 #include "i_system.h"
 #include "i_sound.h"
 #include "i_video.h"
+
+#ifdef __3DS__
+extern unsigned int ctr_profile_top_us;
+extern unsigned int ctr_profile_map_us;
+extern unsigned int ctr_profile_status_us;
+#endif
+
+#ifdef __3DS__
+#include <3ds.h>
+#endif
 #include "g_game.h"
 #include "hu_stuff.h"
 #include "wi_stuff.h"
@@ -424,9 +434,33 @@ void D_Display (fixed_t frac)
 #endif
 
       // Now do the drawing
+#ifdef __3DS__
+      ctr_profile_top_us = 0;
+#endif
+
       if (viewactive || map_always_updates)
       {
+#ifdef __3DS__
+        u64 ctr_profile_top_start = 0;
+
+        if (V_GetMode() == VID_MODE32)
+          ctr_profile_top_start = svcGetSystemTick();
+#endif
+
         R_RenderPlayerView (&players[displayplayer]);
+
+#ifdef __3DS__
+        if (V_GetMode() == VID_MODE32)
+        {
+          ctr_profile_top_us =
+              (unsigned int)(
+                  (svcGetSystemTick() -
+                   ctr_profile_top_start) *
+                  1000ULL /
+                  CPU_TICKS_PER_MSEC
+              );
+        }
+#endif
       }
 
       // IDRATE cheat
@@ -437,12 +471,45 @@ void D_Display (fixed_t frac)
       use_boom_cm=false;
       frame_fixedcolormap = 0;
 
+#ifdef __3DS__
+      ctr_profile_map_us = 0;
+#endif
+
       if (automapmode & am_active)
       {
+#ifdef __3DS__
+        u64 ctr_profile_map_start = 0;
+
+        if (V_GetMode() == VID_MODE32)
+          ctr_profile_map_start = svcGetSystemTick();
+#endif
+
         AM_Drawer();
+
+#ifdef __3DS__
+        if (V_GetMode() == VID_MODE32)
+        {
+          ctr_profile_map_us =
+              (unsigned int)(
+                  (svcGetSystemTick() -
+                   ctr_profile_map_start) *
+                  1000ULL /
+                  CPU_TICKS_PER_MSEC
+              );
+        }
+#endif
       }
 
       R_RestoreInterpolations();
+
+#ifdef __3DS__
+      u64 ctr_profile_status_start = 0;
+
+      ctr_profile_status_us = 0;
+
+      if (V_GetMode() == VID_MODE32)
+        ctr_profile_status_start = svcGetSystemTick();
+#endif
 
       ST_Drawer(
           ((viewheight != SCREENHEIGHT)
@@ -453,6 +520,19 @@ void D_Display (fixed_t frac)
           ),
           redrawborderstuff || BorderNeedRefresh,
           (menuactive == mnact_full));
+
+#ifdef __3DS__
+      if (V_GetMode() == VID_MODE32)
+      {
+        ctr_profile_status_us =
+            (unsigned int)(
+                (svcGetSystemTick() -
+                 ctr_profile_status_start) *
+                1000ULL /
+                CPU_TICKS_PER_MSEC
+            );
+      }
+#endif
 
       BorderNeedRefresh = false;
       if (V_GetMode() != VID_MODEGL)

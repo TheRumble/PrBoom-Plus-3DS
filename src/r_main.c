@@ -1047,8 +1047,19 @@ static void R_SetupFrame (player_t *player)
 // R_ShowStats
 //
 int rendered_visplanes, rendered_segs, rendered_vissprites;
+#ifdef __3DS__
+dboolean rendering_stats = 1;
+#else
 dboolean rendering_stats;
+#endif
 int renderer_fps = 0;
+
+#ifdef __3DS__
+unsigned int ctr_profile_top_us = 0;
+unsigned int ctr_profile_map_us = 0;
+unsigned int ctr_profile_status_us = 0;
+unsigned int ctr_profile_bottom_us = 0;
+#endif
 
 void R_ShowStats(void)
 {
@@ -1060,10 +1071,36 @@ void R_ShowStats(void)
     renderer_fps = 1000 * FPS_FrameCount / (tick - FPS_SavedTick);
     if (rendering_stats)
     {
+#ifdef __3DS__
+      doom_printf(
+          (V_GetMode() == VID_MODEGL)
+              ? "Frame rate %d fps\n"
+                "Walls %d, Flats %d, Sprites %d\n"
+                "Top %u.%03u Map %u.%03u ms\n"
+                "Status %u.%03u Out %u.%03u ms"
+              : "Frame rate %d fps\n"
+                "Segs %d, Visplanes %d, Sprites %d\n"
+                "Top %u.%03u Map %u.%03u ms\n"
+                "Status %u.%03u Out %u.%03u ms",
+          renderer_fps,
+          rendered_segs,
+          rendered_visplanes,
+          rendered_vissprites,
+          ctr_profile_top_us / 1000,
+          ctr_profile_top_us % 1000,
+          ctr_profile_map_us / 1000,
+          ctr_profile_map_us % 1000,
+          ctr_profile_status_us / 1000,
+          ctr_profile_status_us % 1000,
+          ctr_profile_bottom_us / 1000,
+          ctr_profile_bottom_us % 1000
+      );
+#else
       doom_printf((V_GetMode() == VID_MODEGL)
                   ?"Frame rate %d fps\nWalls %d, Flats %d, Sprites %d"
                   :"Frame rate %d fps\nSegs %d, Visplanes %d, Sprites %d",
       renderer_fps, rendered_segs, rendered_visplanes, rendered_vissprites);
+#endif
     }
     FPS_SavedTick = tick;
     FPS_FrameCount = 0;

@@ -83,6 +83,8 @@ static ctr_input_mode_t ctr_input_mode = CTR_INPUT_MAP;
 
 extern int screenblocks;
 
+extern unsigned int ctr_profile_bottom_us;
+
 static int ctr_saved_screenblocks = 10;
 static int ctr_previous_map_mode = -1;
 
@@ -733,7 +735,27 @@ void I_FinishUpdate (void)
   //e6y: new mouse code
   UpdateGrab();
 
-  I_DrawBottomScreen();
+  {
+    u64 ctr_profile_bottom_start = 0;
+
+    ctr_profile_bottom_us = 0;
+
+    if (V_GetMode() == VID_MODE32)
+      ctr_profile_bottom_start = svcGetSystemTick();
+
+    I_DrawBottomScreen();
+
+    if (V_GetMode() == VID_MODE32)
+    {
+      ctr_profile_bottom_us =
+          (unsigned int)(
+              (svcGetSystemTick() -
+               ctr_profile_bottom_start) *
+              1000ULL /
+              CPU_TICKS_PER_MSEC
+          );
+    }
+  }
 
   // The screen wipe following pressing the exit switch on a level
   // is noticably jerkier with I_SkipFrame
