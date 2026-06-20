@@ -533,26 +533,69 @@ static void I_DrawBottomScreen (void)
       default:
       {
         const u32 *source = (const u32 *)screens[5].data;
+        const u32 *source_rows[240];
+        static int source_x32[320];
+        static int source_y32[240];
+        static int cached_width32 = -1;
+        static int cached_height32 = -1;
 
-        for (x = 0; x < 320; x++)
+        if (cached_width32 != src_width)
         {
-          const int src_x = x * src_width / 320;
+          for (x = 0; x < 320; x++)
+            source_x32[x] = x * src_width / 320;
 
+          cached_width32 = src_width;
+        }
+
+        if (cached_height32 != src_height)
+        {
           for (y = 0; y < 240; y++)
           {
-            const int src_y =
-                src_height - 1 - (y * src_height / 240);
+            source_y32[y] =
+                src_height - 1 -
+                (y * src_height / 240);
+          }
 
-            const u32 pixel =
-                source[
-                    src_y * screens[5].int_pitch + src_x
-                ];
+          cached_height32 = src_height;
+        }
 
-            const int destination = (x * 240 + y) * 3;
+        for (y = 0; y < 240; y++)
+        {
+          source_rows[y] =
+              source +
+              source_y32[y] * screens[5].int_pitch;
+        }
 
-            framebuf[destination + 0] = pixel & 0xff;
-            framebuf[destination + 1] = (pixel >> 8) & 0xff;
-            framebuf[destination + 2] = (pixel >> 16) & 0xff;
+        /*
+         * BGR8 stores twelve bytes for four pixels. Pack those twelve
+         * bytes into three aligned 32-bit writes.
+         */
+        for (x = 0; x < 320; x++)
+        {
+          const int src_x = source_x32[x];
+          u32 *destination =
+              (u32 *)(framebuf + x * 240 * 3);
+
+          for (y = 0; y < 240; y += 4)
+          {
+            const u32 pixel0 = source_rows[y + 0][src_x];
+            const u32 pixel1 = source_rows[y + 1][src_x];
+            const u32 pixel2 = source_rows[y + 2][src_x];
+            const u32 pixel3 = source_rows[y + 3][src_x];
+
+            destination[0] =
+                (pixel0 & 0x00ffffff) |
+                ((pixel1 & 0x000000ff) << 24);
+
+            destination[1] =
+                ((pixel1 >> 8) & 0x0000ffff) |
+                ((pixel2 & 0x0000ffff) << 16);
+
+            destination[2] =
+                ((pixel2 >> 16) & 0x000000ff) |
+                ((pixel3 & 0x00ffffff) << 8);
+
+            destination += 3;
           }
         }
 

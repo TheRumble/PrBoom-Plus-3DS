@@ -1032,11 +1032,18 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
    */
 #ifdef __3DS__
   /*
-   * The lower screen is a separate software buffer, so redraw its
-   * small status-bar area completely while Map mode is active.
+   * Rebuild the lower status-bar background only when entering
+   * Map mode. Later frames use the normal incremental updates.
    */
-  if (I_BottomScreenIsMap())
-    st_firsttime = true;
+  {
+    static dboolean bottom_map_was_active = false;
+    dboolean bottom_map_is_active = I_BottomScreenIsMap();
+
+    if (bottom_map_is_active && !bottom_map_was_active)
+      st_firsttime = true;
+
+    bottom_map_was_active = bottom_map_is_active;
+  }
 #endif
 
   st_firsttime = st_firsttime || refresh || fullmenu;
