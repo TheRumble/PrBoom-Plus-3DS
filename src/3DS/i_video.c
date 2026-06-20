@@ -425,35 +425,53 @@ static void I_DrawBottomScreen (void)
     {
       case VID_MODE15:
       {
-        const u16 *source = (const u16 *)screens[5].data;
+        /*
+         * The game buffer is ARGB1555 while the 3DS framebuffer
+         * expects RGB5_A1. Move the alpha bit from bit 15 to bit 0;
+         * the RGB components otherwise stay in the same order.
+         */
+        const u16 *source =
+            (const u16 *)screens[5].data;
+        u16 *destination = (u16 *)framebuf;
+
+        static int cached_width = -1;
+        static int cached_height = -1;
+        static int source_x[320];
+        static int source_y[240];
+
+        if (src_width != cached_width ||
+            src_height != cached_height)
+        {
+          for (x = 0; x < 320; x++)
+            source_x[x] = x * src_width / 320;
+
+          for (y = 0; y < 240; y++)
+            source_y[y] =
+                src_height - 1 -
+                (y * src_height / 240);
+
+          cached_width = src_width;
+          cached_height = src_height;
+        }
 
         for (x = 0; x < 320; x++)
         {
-          const int src_x = x * src_width / 320;
+          const int sx = source_x[x];
+          u16 *destination_column =
+              destination + x * 240;
 
           for (y = 0; y < 240; y++)
           {
-            const int src_y =
-                src_height - 1 - (y * src_height / 240);
-
             const u16 pixel =
                 source[
-                    src_y * screens[5].short_pitch + src_x
+                    source_y[y] *
+                    screens[5].short_pitch +
+                    sx
                 ];
 
-            u8 blue = pixel & 0x1f;
-            u8 green = (pixel >> 5) & 0x1f;
-            u8 red = (pixel >> 10) & 0x1f;
-
-            const int destination = (x * 240 + y) * 3;
-
-            blue = (blue << 3) | (blue >> 2);
-            green = (green << 3) | (green >> 2);
-            red = (red << 3) | (red >> 2);
-
-            framebuf[destination + 0] = blue;
-            framebuf[destination + 1] = green;
-            framebuf[destination + 2] = red;
+            destination_column[y] =
+                (pixel << 1) |
+                ((pixel & 0x8000) >> 15);
           }
         }
 
@@ -559,7 +577,27 @@ static void I_DrawBottomScreen (void)
             ? _acbottom_on
             : _acbottom_off;
 
-    if (V_GetMode() == VID_MODE16)
+    if (V_GetMode() == VID_MODE15)
+    {
+      u16 *destination = (u16 *)framebuf;
+      int pixel_index;
+
+      for (pixel_index = 0;
+           pixel_index < 240 * 320;
+           pixel_index++)
+      {
+        const u8 blue = image[pixel_index * 3 + 0];
+        const u8 green = image[pixel_index * 3 + 1];
+        const u8 red = image[pixel_index * 3 + 2];
+
+        destination[pixel_index] =
+            ((u16)(red >> 3) << 11) |
+            ((u16)(green >> 3) << 6) |
+            ((u16)(blue >> 3) << 1) |
+            1;
+      }
+    }
+    else if (V_GetMode() == VID_MODE16)
     {
       u16 *destination = (u16 *)framebuf;
       int pixel_index;
@@ -1053,9 +1091,11 @@ void I_UpdateVideoMode(void)
      */
     gfxSetScreenFormat(
         GFX_BOTTOM,
-        V_GetMode() == VID_MODE16
-            ? GSP_RGB565_OES
-            : GSP_BGR8_OES
+        V_GetMode() == VID_MODE15
+            ? GSP_RGB5_A1_OES
+            : V_GetMode() == VID_MODE16
+                ? GSP_RGB565_OES
+                : GSP_BGR8_OES
     );
 
     gfxSet3D(false);
