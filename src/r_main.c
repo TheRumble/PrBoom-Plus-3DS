@@ -1059,6 +1059,9 @@ unsigned int ctr_profile_top_us = 0;
 unsigned int ctr_profile_map_us = 0;
 unsigned int ctr_profile_status_us = 0;
 unsigned int ctr_profile_bottom_us = 0;
+unsigned int ctr_profile_top_output_us = 0;
+unsigned int ctr_profile_submit_us = 0;
+unsigned int ctr_profile_wait_us = 0;
 #endif
 
 void R_ShowStats(void)
@@ -1073,27 +1076,28 @@ void R_ShowStats(void)
     {
 #ifdef __3DS__
       doom_printf(
-          (V_GetMode() == VID_MODEGL)
-              ? "Frame rate %d fps\n"
-                "Walls %d, Flats %d, Sprites %d\n"
-                "Top %u.%03u Map %u.%03u ms\n"
-                "Status %u.%03u Out %u.%03u ms"
-              : "Frame rate %d fps\n"
-                "Segs %d, Visplanes %d, Sprites %d\n"
-                "Top %u.%03u Map %u.%03u ms\n"
-                "Status %u.%03u Out %u.%03u ms",
+          "FPS %d  Top %u.%03u  TopOut %u.%03u\n"
+          "Map %u.%03u  Status %u.%03u  BotOut %u.%03u\n"
+          "Submit %u.%03u  Wait %u.%03u ms\n"
+          "Segs %d  Planes %d  Sprites %d",
           renderer_fps,
-          rendered_segs,
-          rendered_visplanes,
-          rendered_vissprites,
           ctr_profile_top_us / 1000,
           ctr_profile_top_us % 1000,
+          ctr_profile_top_output_us / 1000,
+          ctr_profile_top_output_us % 1000,
           ctr_profile_map_us / 1000,
           ctr_profile_map_us % 1000,
           ctr_profile_status_us / 1000,
           ctr_profile_status_us % 1000,
           ctr_profile_bottom_us / 1000,
-          ctr_profile_bottom_us % 1000
+          ctr_profile_bottom_us % 1000,
+          ctr_profile_submit_us / 1000,
+          ctr_profile_submit_us % 1000,
+          ctr_profile_wait_us / 1000,
+          ctr_profile_wait_us % 1000,
+          rendered_segs,
+          rendered_visplanes,
+          rendered_vissprites
       );
 #else
       doom_printf((V_GetMode() == VID_MODEGL)

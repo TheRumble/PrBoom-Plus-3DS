@@ -84,6 +84,9 @@ static ctr_input_mode_t ctr_input_mode = CTR_INPUT_MAP;
 extern int screenblocks;
 
 extern unsigned int ctr_profile_bottom_us;
+extern unsigned int ctr_profile_top_output_us;
+extern unsigned int ctr_profile_submit_us;
+extern unsigned int ctr_profile_wait_us;
 
 static int ctr_saved_screenblocks = 10;
 static int ctr_previous_map_mode = -1;
@@ -775,6 +778,14 @@ static inline u32 argb8_2_rgba8(u32 x) {
 //
 void I_FinishUpdate (void)
 {
+  u64 ctr_profile_top_output_start = 0;
+  u64 ctr_profile_submit_start = 0;
+  u64 ctr_profile_wait_start = 0;
+
+  ctr_profile_top_output_us = 0;
+  ctr_profile_submit_us = 0;
+  ctr_profile_wait_us = 0;
+
   //e6y: new mouse code
   UpdateGrab();
 
@@ -812,6 +823,9 @@ void I_FinishUpdate (void)
   }
 #endif
 
+  if (V_GetMode() == VID_MODE32)
+    ctr_profile_top_output_start = svcGetSystemTick();
+
   switch(V_GetMode()) {
   case VID_MODE15:
   {
@@ -847,29 +861,91 @@ void I_FinishUpdate (void)
   }
   default: // VID_MODE32
   {
-    u32* dst_ptr = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL) + 239;
-    u32* src_ptr = (u32*)screens[0].data;
+    u32 *destination =
+        (u32 *)gfxGetFramebuffer(
+            GFX_TOP,
+            GFX_LEFT,
+            NULL,
+            NULL
+        );
 
-    for(int y = 0; y < 240; y++) {
-      for(int x = 0; x < 400; x++) {
-        *dst_ptr = argb8_2_rgba8(*src_ptr);
+    const u32 *source =
+        (const u32 *)screens[0].data;
 
-        dst_ptr += 240;
-        src_ptr++;
-      }
-      dst_ptr -= (400 * 240) + 1;
+    const u32 *source_rows[240];
+
+    /*
+     * The 3DS framebuffer is rotated. Write each physical framebuffer
+     * column contiguously instead of jumping 240 pixels between writes.
+     * Source reads are strided, but they come from normal cached memory.
+     */
+    for (int y = 0; y < 240; y++)
+    {
+      source_rows[y] =
+          source + y * screens[0].int_pitch;
     }
+
+    for (int x = 0; x < 400; x++)
+    {
+      u32 *destination_column =
+          destination + x * 240 + 239;
+
+      for (int y = 0; y < 240; y++)
+      {
+        *destination_column-- =
+            argb8_2_rgba8(source_rows[y][x]);
+      }
+    }
+
     break;
   }
+  }
+
+  if (V_GetMode() == VID_MODE32)
+  {
+    ctr_profile_top_output_us =
+        (unsigned int)(
+            (svcGetSystemTick() -
+             ctr_profile_top_output_start) *
+            1000ULL /
+            CPU_TICKS_PER_MSEC
+        );
   }
 
   // Draw!
 
   // Flush and swap framebuffers
+  if (V_GetMode() == VID_MODE32)
+    ctr_profile_submit_start = svcGetSystemTick();
+
   gfxFlushBuffers();
   gfxSwapBuffers();
 
+  if (V_GetMode() == VID_MODE32)
+  {
+    ctr_profile_submit_us =
+        (unsigned int)(
+            (svcGetSystemTick() -
+             ctr_profile_submit_start) *
+            1000ULL /
+            CPU_TICKS_PER_MSEC
+        );
+
+    ctr_profile_wait_start = svcGetSystemTick();
+  }
+
   gspWaitForVBlank();
+
+  if (V_GetMode() == VID_MODE32)
+  {
+    ctr_profile_wait_us =
+        (unsigned int)(
+            (svcGetSystemTick() -
+             ctr_profile_wait_start) *
+            1000ULL /
+            CPU_TICKS_PER_MSEC
+        );
+  }
 }
 
 static void I_ShutdownSDL(void)
