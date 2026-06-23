@@ -167,6 +167,27 @@ void gl_wrapper_perspective(float fovy, float aspect, float znear);
 void gl_wrapper_select_screen(gfx3dSide_t side);
 void gl_wrapper_select_bottom(void);
 
+/*
+ * Dynamic indexed automap-line batch.
+ *
+ * Call begin before AM_Drawer(), submit each line, then call end
+ * once to draw the complete batch.
+ */
+void gl_wrapper_map_lines_begin(void);
+
+void gl_wrapper_map_line(
+    GLfloat x0,
+    GLfloat y0,
+    GLfloat x1,
+    GLfloat y1,
+    GLubyte red,
+    GLubyte green,
+    GLubyte blue,
+    GLubyte alpha
+);
+
+void gl_wrapper_map_lines_end(void);
+
 void gl_wrapper_swap_buffers();
 
 //========== GRAPHICS FUNCTIONS ==========

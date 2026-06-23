@@ -526,7 +526,17 @@ void D_Display (fixed_t frac)
         if (!ctr_gl_bottom_map || i == 0)
 #endif
         {
+#ifdef __3DS__
+          if (ctr_gl_bottom_map && i == 0)
+            gl_wrapper_map_lines_begin();
+#endif
+
           AM_Drawer();
+
+#ifdef __3DS__
+          if (ctr_gl_bottom_map && i == 0)
+            gl_wrapper_map_lines_end();
+#endif
         }
 
 #ifdef __3DS__

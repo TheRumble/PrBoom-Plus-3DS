@@ -1,3 +1,7 @@
+#ifdef __3DS__
+#include "3DS/gl_wrapper.h"
+#endif
+
 /* Emacs style mode select   -*- C++ -*-
  *-----------------------------------------------------------------------------
  *
@@ -683,6 +687,34 @@ void gld_FillPatch(int lump, int x, int y, int width, int height, enum patch_tra
 
 void gld_DrawLine_f(float x0, float y0, float x1, float y1, int BaseColor)
 {
+#ifdef __3DS__
+  {
+    const unsigned char *ctr_playpal = V_GetPlaypal();
+
+    const unsigned char ctr_alpha =
+        (unsigned char)(
+            (automapmode & am_overlay)
+            ? map_lines_overlay_trans * 255 / 100
+            : 255
+        );
+
+    if (ctr_alpha == 0)
+      return;
+
+    gl_wrapper_map_line(
+        x0,
+        y0,
+        x1,
+        y1,
+        ctr_playpal[3 * BaseColor + 0],
+        ctr_playpal[3 * BaseColor + 1],
+        ctr_playpal[3 * BaseColor + 2],
+        ctr_alpha
+    );
+
+    return;
+  }
+#endif
 #if defined(USE_VERTEX_ARRAYS)
   const unsigned char *playpal = V_GetPlaypal();
   unsigned char r, g, b, a;

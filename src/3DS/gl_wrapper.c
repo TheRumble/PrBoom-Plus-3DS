@@ -4,6 +4,7 @@
 #include "../z_zone.h" // For malloc/free
 
 #include <citro3d.h>
+#include <math.h>
 #include "vshader_shbin.h"
 
 #define ANG_PI 3.14159265358979323846
@@ -111,6 +112,40 @@ static C3D_FogLut fog_Lut;
 static C3D_MtxStack mtx_modelview, mtx_projection, mtx_texture;
 static C3D_MtxStack *cur_mtxstack;
 
+static inline void _update_dirty_render_states(void);
+
+
+/*
+ * Compact indexed-line vertex.
+ *
+ * Attribute 0: RGBA color, four unsigned bytes.
+ * Attribute 1: fixed texture coordinate.
+ * Attribute 2: XY position, two floats.
+ */
+typedef struct
+{
+    u8 color[4];
+    float x;
+    float y;
+} gl_indexed_line_vertex_t;
+
+/*
+ * Four vertices and six indices are used for each line.
+ *
+ * The u16 index format limits one batch to fewer than 16,384
+ * four-vertex lines.
+ */
+#define GL_MAP_LINE_MAX 16380
+
+static gl_indexed_line_vertex_t *map_line_vbo = NULL;
+static u16 *map_line_ibo = NULL;
+
+static unsigned int map_line_count = 0;
+static int map_line_batch_active = 0;
+
+static C3D_AttrInfo map_line_attr_info;
+static C3D_BufInfo map_line_buf_info;
+
 static inline void _set_default_render_states() {
     clear_color_r = 0.0f;
     clear_color_g = 0.0f;
@@ -173,6 +208,82 @@ static inline void _set_default_render_states() {
     cur_texcoord[3] = 1.0f;
 }
 
+static void _init_map_line_batch(void)
+{
+    map_line_vbo = linearAlloc(
+        GL_MAP_LINE_MAX * 4 * sizeof(*map_line_vbo)
+    );
+
+    map_line_ibo = linearAlloc(
+        GL_MAP_LINE_MAX * 6 * sizeof(*map_line_ibo)
+    );
+
+    if (!map_line_vbo || !map_line_ibo)
+    {
+        if (map_line_vbo)
+            linearFree(map_line_vbo);
+
+        if (map_line_ibo)
+            linearFree(map_line_ibo);
+
+        map_line_vbo = NULL;
+        map_line_ibo = NULL;
+        return;
+    }
+
+    AttrInfo_Init(&map_line_attr_info);
+
+    /*
+     * Shader attribute 0: packed RGBA color.
+     */
+    AttrInfo_AddLoader(
+        &map_line_attr_info,
+        0,
+        GPU_UNSIGNED_BYTE,
+        4
+    );
+
+    /*
+     * Shader attribute 1: fixed unused texture coordinate.
+     */
+    AttrInfo_AddFixed(
+        &map_line_attr_info,
+        1
+    );
+
+    /*
+     * Shader attribute 2: two-float screen position.
+     */
+    AttrInfo_AddLoader(
+        &map_line_attr_info,
+        2,
+        GPU_FLOAT,
+        2
+    );
+
+    BufInfo_Init(&map_line_buf_info);
+
+    /*
+     * The vertex buffer contains attributes 0 and 2.
+     * 0x20 maps its first field to attribute 0 and its second
+     * field to attribute 2.
+     */
+    if (BufInfo_Add(
+            &map_line_buf_info,
+            map_line_vbo,
+            sizeof(*map_line_vbo),
+            2,
+            0x20
+        ) < 0)
+    {
+        linearFree(map_line_ibo);
+        linearFree(map_line_vbo);
+
+        map_line_ibo = NULL;
+        map_line_vbo = NULL;
+    }
+}
+
 void gl_wrapper_init() {
     // TODO: Keep an eye on this. So far, we're using immediate drawing,
     // which gobbles up a LOT of the command buffer. This should be big enough
@@ -205,6 +316,8 @@ void gl_wrapper_init() {
     AttrInfo_AddLoader(attrInfo, 0, GPU_FLOAT, 4); // v0=color
     AttrInfo_AddLoader(attrInfo, 1, GPU_FLOAT, 4); // v1=texcoord0
     AttrInfo_AddLoader(attrInfo, 2, GPU_FLOAT, 4); // v2=position
+
+    _init_map_line_batch();
 
     // Init matrix stacks
     MtxStack_Init(&mtx_modelview);
@@ -255,6 +368,21 @@ static inline void _release_all_gl_textures() {
 }
 
 void gl_wrapper_cleanup() {
+    if (map_line_ibo)
+    {
+        linearFree(map_line_ibo);
+        map_line_ibo = NULL;
+    }
+
+    if (map_line_vbo)
+    {
+        linearFree(map_line_vbo);
+        map_line_vbo = NULL;
+    }
+
+    map_line_count = 0;
+    map_line_batch_active = 0;
+
     // Release allocated textures
     _release_all_gl_textures();
 
@@ -330,6 +458,225 @@ void gl_wrapper_swap_buffers() {
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
 }
 
+
+void gl_wrapper_map_lines_begin(void)
+{
+    map_line_count = 0;
+
+    map_line_batch_active =
+        map_line_vbo != NULL &&
+        map_line_ibo != NULL;
+}
+
+
+void gl_wrapper_map_line(
+    GLfloat x0,
+    GLfloat y0,
+    GLfloat x1,
+    GLfloat y1,
+    GLubyte red,
+    GLubyte green,
+    GLubyte blue,
+    GLubyte alpha
+)
+{
+    gl_indexed_line_vertex_t *vertex;
+    u16 *index;
+
+    float dx;
+    float dy;
+    float length_squared;
+    float inverse_length;
+    float normal_x;
+    float normal_y;
+
+    unsigned int base_vertex;
+
+    if (!map_line_batch_active)
+        return;
+
+    if (map_line_count >= GL_MAP_LINE_MAX)
+        return;
+
+    dx = x1 - x0;
+    dy = y1 - y0;
+
+    length_squared = dx * dx + dy * dy;
+
+    if (length_squared <= 0.000001f)
+        return;
+
+    /*
+     * Half of a one-pixel line width.
+     */
+    inverse_length =
+        0.5f / sqrtf(length_squared);
+
+    normal_x = -dy * inverse_length;
+    normal_y =  dx * inverse_length;
+
+    vertex = &map_line_vbo[map_line_count * 4];
+    index = &map_line_ibo[map_line_count * 6];
+
+    /*
+     * Two vertices on each side of the original line.
+     */
+    vertex[0].color[0] = red;
+    vertex[0].color[1] = green;
+    vertex[0].color[2] = blue;
+    vertex[0].color[3] = alpha;
+    vertex[0].x = x0 + normal_x;
+    vertex[0].y = y0 + normal_y;
+
+    vertex[1].color[0] = red;
+    vertex[1].color[1] = green;
+    vertex[1].color[2] = blue;
+    vertex[1].color[3] = alpha;
+    vertex[1].x = x1 + normal_x;
+    vertex[1].y = y1 + normal_y;
+
+    vertex[2].color[0] = red;
+    vertex[2].color[1] = green;
+    vertex[2].color[2] = blue;
+    vertex[2].color[3] = alpha;
+    vertex[2].x = x0 - normal_x;
+    vertex[2].y = y0 - normal_y;
+
+    vertex[3].color[0] = red;
+    vertex[3].color[1] = green;
+    vertex[3].color[2] = blue;
+    vertex[3].color[3] = alpha;
+    vertex[3].x = x1 - normal_x;
+    vertex[3].y = y1 - normal_y;
+
+    base_vertex = map_line_count * 4;
+
+    index[0] = (u16)(base_vertex + 0);
+    index[1] = (u16)(base_vertex + 2);
+    index[2] = (u16)(base_vertex + 1);
+
+    index[3] = (u16)(base_vertex + 1);
+    index[4] = (u16)(base_vertex + 2);
+    index[5] = (u16)(base_vertex + 3);
+
+    map_line_count++;
+}
+
+
+void gl_wrapper_map_lines_end(void)
+{
+    C3D_AttrInfo saved_attr_info;
+    C3D_BufInfo saved_buf_info;
+    C3D_TexEnv saved_tex_env;
+    C3D_TexEnv *tex_env;
+
+    unsigned int vertex_count;
+    unsigned int index_count;
+
+    map_line_batch_active = 0;
+
+    if (!map_line_vbo ||
+        !map_line_ibo ||
+        map_line_count == 0)
+    {
+        return;
+    }
+
+    vertex_count = map_line_count * 4;
+    index_count = map_line_count * 6;
+
+    /*
+     * Only the portion written during this frame needs to be
+     * synchronized for GPU access.
+     */
+    GSPGPU_FlushDataCache(
+        map_line_vbo,
+        vertex_count * sizeof(*map_line_vbo)
+    );
+
+    GSPGPU_FlushDataCache(
+        map_line_ibo,
+        index_count * sizeof(*map_line_ibo)
+    );
+
+    MtxStack_Update(&mtx_modelview);
+    MtxStack_Update(&mtx_projection);
+    MtxStack_Update(&mtx_texture);
+
+    _update_dirty_render_states();
+
+    saved_attr_info = *C3D_GetAttrInfo();
+    saved_buf_info = *C3D_GetBufInfo();
+
+    tex_env = C3D_GetTexEnv(0);
+    saved_tex_env = *tex_env;
+
+    /*
+     * Render untextured vertex colors.
+     */
+    C3D_TexEnvInit(tex_env);
+
+    C3D_TexEnvSrc(
+        tex_env,
+        C3D_RGB,
+        GPU_PRIMARY_COLOR,
+        0,
+        0
+    );
+
+    C3D_TexEnvFunc(
+        tex_env,
+        C3D_RGB,
+        GPU_REPLACE
+    );
+
+    C3D_TexEnvSrc(
+        tex_env,
+        C3D_Alpha,
+        GPU_PRIMARY_COLOR,
+        0,
+        0
+    );
+
+    C3D_TexEnvFunc(
+        tex_env,
+        C3D_Alpha,
+        GPU_REPLACE
+    );
+
+    C3D_TexBind(0, NULL);
+
+    C3D_SetAttrInfo(&map_line_attr_info);
+    C3D_SetBufInfo(&map_line_buf_info);
+
+    C3D_FixedAttribSet(
+        1,
+        0.0f,
+        0.0f,
+        0.0f,
+        1.0f
+    );
+
+    C3D_DrawElements(
+        GPU_TRIANGLES,
+        index_count,
+        C3D_UNSIGNED_SHORT,
+        map_line_ibo
+    );
+
+    /*
+     * Restore the wrapper's normal immediate-mode configuration.
+     */
+    C3D_SetAttrInfo(&saved_attr_info);
+    C3D_SetBufInfo(&saved_buf_info);
+
+    *C3D_GetTexEnv(0) = saved_tex_env;
+
+    if (cur_texture)
+        C3D_TexBind(0, &cur_texture->c3d_tex);
+    else
+        C3D_TexBind(0, NULL);
+}
 
 //========== GRAPHICS FUNCTIONS ==========
 
