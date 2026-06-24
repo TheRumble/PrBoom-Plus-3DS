@@ -404,6 +404,17 @@ static void I_DrawBottomScreen (void)
   static int ctr_last_static_mode = -1;
   static int ctr_last_static_video_mode = -1;
 
+  /*
+   * In GL Map mode Citro3D owns the lower framebuffer.
+   */
+  if (ctr_input_mode == CTR_INPUT_MAP &&
+      V_GetMode() == VID_MODEGL)
+  {
+    ctr_last_static_mode = -1;
+    ctr_last_static_video_mode = -1;
+    return;
+  }
+
   u8 *framebuf =
       gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
 

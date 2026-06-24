@@ -14,6 +14,11 @@
     GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGBA8) | \
     GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
 
+#define BOTTOM_DISPLAY_TRANSFER_FLAGS \
+    (GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) | \
+    GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) | \
+    GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO))
+
 typedef enum _gl_c3d_dirty_flags {
     DIRTY_FLAGS_CULL        = 0x0001,
     DIRTY_FLAGS_BLEND       = 0x0002,
@@ -93,6 +98,8 @@ int gl_is_inited = 0;
 
 static C3D_RenderTarget *hw_screen_l = NULL;
 static C3D_RenderTarget *hw_screen_r = NULL;
+static C3D_RenderTarget *hw_screen_bottom = NULL;
+static int hw_screen_is_bottom = 0;
 float hw_stereo_offset;
 
 static DVLB_s* vshader_dvlb;
@@ -174,8 +181,16 @@ void gl_wrapper_init() {
 
     hw_screen_l = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH16);
     hw_screen_r = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH16);
+    hw_screen_bottom = C3D_RenderTargetCreate(240, 320, GPU_RB_RGBA8, GPU_RB_DEPTH16);
+
     C3D_RenderTargetSetOutput(hw_screen_l, GFX_TOP, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
     C3D_RenderTargetSetOutput(hw_screen_r, GFX_TOP, GFX_RIGHT, DISPLAY_TRANSFER_FLAGS);
+    C3D_RenderTargetSetOutput(
+        hw_screen_bottom,
+        GFX_BOTTOM,
+        GFX_LEFT,
+        BOTTOM_DISPLAY_TRANSFER_FLAGS
+    );
 
     // Load the vertex shader, create a shader program and bind it
     vshader_dvlb = DVLB_ParseFile((u32*)vshader_shbin, vshader_shbin_size);
@@ -250,8 +265,11 @@ void gl_wrapper_cleanup() {
     // Release framebuffer objects
     C3D_RenderTargetDelete(hw_screen_l);
     C3D_RenderTargetDelete(hw_screen_r);
+    C3D_RenderTargetDelete(hw_screen_bottom);
+
     hw_screen_l = NULL;
     hw_screen_r = NULL;
+    hw_screen_bottom = NULL;
 
     C3D_Fini();
 
@@ -268,7 +286,40 @@ void gl_wrapper_perspective(float fovy, float aspect, float znear) {
 
 void gl_wrapper_select_screen(gfx3dSide_t side) {
     C3D_RenderTarget *rt = (side == GFX_LEFT) ? hw_screen_l : hw_screen_r;
+
+    hw_screen_is_bottom = 0;
+
+    viewport_x = 0;
+    viewport_y = 0;
+    viewport_width = 240;
+    viewport_height = 400;
+
+    scissor_x = 0;
+    scissor_y = 0;
+    scissor_width = 240;
+    scissor_height = 400;
+
+    dirty_flags |= DIRTY_FLAGS_VIEWPORT | DIRTY_FLAGS_SCISSOR;
+
     C3D_FrameDrawOn(rt);
+}
+
+void gl_wrapper_select_bottom(void) {
+    hw_screen_is_bottom = 1;
+
+    viewport_x = 0;
+    viewport_y = 0;
+    viewport_width = 240;
+    viewport_height = 320;
+
+    scissor_x = 0;
+    scissor_y = 0;
+    scissor_width = 240;
+    scissor_height = 320;
+
+    dirty_flags |= DIRTY_FLAGS_VIEWPORT | DIRTY_FLAGS_SCISSOR;
+
+    C3D_FrameDrawOn(hw_screen_bottom);
 }
 
 void gl_wrapper_swap_buffers() {
@@ -422,7 +473,12 @@ void glClear(GLbitfield mask) {
     C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ZERO, GPU_ONE, GPU_ZERO);
     C3D_DepthTest(true, GPU_ALWAYS, write_mask);
 
-    C3D_SetViewport(0, 0, 240, 400);
+    C3D_SetViewport(
+        0,
+        0,
+        240,
+        hw_screen_is_bottom ? 320 : 400
+    );
     C3D_SetScissor(scissor_enable ? GPU_SCISSOR_NORMAL : GPU_SCISSOR_DISABLE, scissor_x, scissor_y, scissor_x + scissor_width, scissor_y + scissor_height);
 
     C3D_TexEnv* env = C3D_GetTexEnv(0);

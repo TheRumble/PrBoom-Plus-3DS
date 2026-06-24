@@ -165,6 +165,7 @@ int gl_wrapper_is_initialized();
 void gl_wrapper_perspective(float fovy, float aspect, float znear);
 
 void gl_wrapper_select_screen(gfx3dSide_t side);
+void gl_wrapper_select_bottom(void);
 
 void gl_wrapper_swap_buffers();
 

@@ -472,7 +472,42 @@ void D_Display (fixed_t frac)
       frame_fixedcolormap = 0;
 
 #ifdef __3DS__
+      const dboolean ctr_gl_bottom_map =
+          V_GetMode() == VID_MODEGL &&
+          I_BottomScreenIsMap();
+
       ctr_profile_map_us = 0;
+
+      /*
+       * First clean stage: move only the existing GL automap to the
+       * lower render target. Status-bar work comes later.
+       */
+      if (ctr_gl_bottom_map && i == 0)
+      {
+        gl_wrapper_select_bottom();
+
+        glDisable(GL_SCISSOR_TEST);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glViewport(0, 0, 320, 240);
+
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(
+            0.0,
+            320.0,
+            240.0,
+            0.0,
+            -1.0,
+            1.0
+        );
+
+        glDisable(GL_DEPTH_TEST);
+      }
 #endif
 
       if (automapmode & am_active)
@@ -484,7 +519,15 @@ void D_Display (fixed_t frac)
           ctr_profile_map_start = svcGetSystemTick();
 #endif
 
-        AM_Drawer();
+#ifdef __3DS__
+        /*
+         * The lower automap is shared by both eyes, so draw it once.
+         */
+        if (!ctr_gl_bottom_map || i == 0)
+#endif
+        {
+          AM_Drawer();
+        }
 
 #ifdef __3DS__
         if (V_GetMode() == VID_MODE32)
@@ -503,6 +546,17 @@ void D_Display (fixed_t frac)
       R_RestoreInterpolations();
 
 #ifdef __3DS__
+      /*
+       * Restore the current top-eye target before HUD/UI drawing.
+       */
+      if (ctr_gl_bottom_map && i == 0)
+      {
+        gl_wrapper_select_screen(GFX_LEFT);
+        glViewport(0, 0, SCREENWIDTH, SCREENHEIGHT);
+        gld_Set2DMode();
+        glDisable(GL_SCISSOR_TEST);
+      }
+
       u64 ctr_profile_status_start = 0;
 
       ctr_profile_status_us = 0;
@@ -511,15 +565,25 @@ void D_Display (fixed_t frac)
         ctr_profile_status_start = svcGetSystemTick();
 #endif
 
-      ST_Drawer(
-          ((viewheight != SCREENHEIGHT)
-          || ((automapmode & am_active) && !(automapmode & am_overlay))
 #ifdef __3DS__
-          || I_BottomScreenIsMap()
+      /*
+       * The bottom GL status bar will be added separately after the
+       * automap target and presentation are verified.
+       */
+      if (!ctr_gl_bottom_map)
 #endif
-          ),
-          redrawborderstuff || BorderNeedRefresh,
-          (menuactive == mnact_full));
+      {
+        ST_Drawer(
+            ((viewheight != SCREENHEIGHT)
+            || ((automapmode & am_active) &&
+                !(automapmode & am_overlay))
+#ifdef __3DS__
+            || I_BottomScreenIsMap()
+#endif
+            ),
+            redrawborderstuff || BorderNeedRefresh,
+            (menuactive == mnact_full));
+      }
 
 #ifdef __3DS__
       if (V_GetMode() == VID_MODE32)
