@@ -2456,7 +2456,15 @@ void HU_Drawer(void)
       }
     }
 
+#ifdef __3DS__
+    /*
+     * Temporarily hide automap level statistics while profiling.
+     * The renderer statistics overlay needs the available screen space.
+     */
+    if (0 && map_level_stat)
+#else
     if (map_level_stat)
+#endif
     {
       static char str[32];
       int time = leveltime / TICRATE;

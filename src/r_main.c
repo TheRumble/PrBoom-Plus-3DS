@@ -59,6 +59,10 @@
 #include "e6y.h"//e6y
 #include "xs_Float.h"
 
+#ifdef __3DS__
+#include "3DS/gl_wrapper.h"
+#endif
+
 // e6y
 // Now they are variables. Depends from render_doom_lightmaps variable.
 // Unify colour maping logic by cph is removed, because of bugs.
@@ -1075,30 +1079,25 @@ void R_ShowStats(void)
     if (rendering_stats)
     {
 #ifdef __3DS__
-      doom_printf(
-          "FPS %d  Top %u.%03u  TopOut %u.%03u\n"
-          "Map %u.%03u  Status %u.%03u  BotOut %u.%03u\n"
-          "Submit %u.%03u  Wait %u.%03u ms\n"
-          "Segs %d  Planes %d  Sprites %d",
-          renderer_fps,
-          ctr_profile_top_us / 1000,
-          ctr_profile_top_us % 1000,
-          ctr_profile_top_output_us / 1000,
-          ctr_profile_top_output_us % 1000,
-          ctr_profile_map_us / 1000,
-          ctr_profile_map_us % 1000,
-          ctr_profile_status_us / 1000,
-          ctr_profile_status_us % 1000,
-          ctr_profile_bottom_us / 1000,
-          ctr_profile_bottom_us % 1000,
-          ctr_profile_submit_us / 1000,
-          ctr_profile_submit_us % 1000,
-          ctr_profile_wait_us / 1000,
-          ctr_profile_wait_us % 1000,
-          rendered_segs,
-          rendered_visplanes,
-          rendered_vissprites
-      );
+      {
+        gl_wrapper_stats_t gl_stats;
+
+        gl_wrapper_get_last_frame_stats(&gl_stats);
+
+        doom_printf(
+            "FPS %d M %u.%03u St %u.%03u\n"
+            "End %u.%03u Beg %u.%03u ms",
+            renderer_fps,
+            ctr_profile_map_us / 1000,
+            ctr_profile_map_us % 1000,
+            ctr_profile_status_us / 1000,
+            ctr_profile_status_us % 1000,
+            gl_stats.frame_end_us / 1000,
+            gl_stats.frame_end_us % 1000,
+            gl_stats.frame_begin_us / 1000,
+            gl_stats.frame_begin_us % 1000
+        );
+      }
 #else
       doom_printf((V_GetMode() == VID_MODEGL)
                   ?"Frame rate %d fps\nWalls %d, Flats %d, Sprites %d"

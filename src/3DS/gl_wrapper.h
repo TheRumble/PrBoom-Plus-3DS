@@ -19,6 +19,27 @@ typedef double GLdouble;
 typedef double GLclampd;
 typedef void GLvoid;
 
+typedef struct
+{
+    unsigned int immediate_draws;
+    unsigned int immediate_vertices;
+
+    unsigned int indexed_draws;
+    unsigned int indexed_indices;
+    unsigned int map_lines;
+
+    unsigned int texture_bind_requests;
+    unsigned int texture_changes;
+
+    unsigned int matrix_checks;
+    unsigned int matrix_uploads;
+
+    unsigned int dirty_state_groups;
+
+    unsigned int frame_end_us;
+    unsigned int frame_begin_us;
+} gl_wrapper_stats_t;
+
 #define GL_LINES 0x0001
 #define GL_TRIANGLES 0x0004
 #define GL_TRIANGLE_STRIP 0x0005
@@ -189,6 +210,7 @@ void gl_wrapper_map_line(
 void gl_wrapper_map_lines_end(void);
 
 void gl_wrapper_swap_buffers();
+void gl_wrapper_get_last_frame_stats(gl_wrapper_stats_t *stats);
 
 //========== GRAPHICS FUNCTIONS ==========
 

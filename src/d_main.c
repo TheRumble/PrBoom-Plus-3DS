@@ -534,8 +534,7 @@ void D_Display (fixed_t frac)
 #ifdef __3DS__
         u64 ctr_profile_map_start = 0;
 
-        if (V_GetMode() == VID_MODE32)
-          ctr_profile_map_start = svcGetSystemTick();
+        ctr_profile_map_start = svcGetSystemTick();
 #endif
 
 #ifdef __3DS__
@@ -559,16 +558,13 @@ void D_Display (fixed_t frac)
         }
 
 #ifdef __3DS__
-        if (V_GetMode() == VID_MODE32)
-        {
-          ctr_profile_map_us =
-              (unsigned int)(
-                  (svcGetSystemTick() -
-                   ctr_profile_map_start) *
-                  1000ULL /
-                  CPU_TICKS_PER_MSEC
-              );
-        }
+        ctr_profile_map_us =
+            (unsigned int)(
+                (svcGetSystemTick() -
+                 ctr_profile_map_start) *
+                1000ULL /
+                CPU_TICKS_PER_MSEC
+            );
 #endif
       }
 
@@ -579,8 +575,7 @@ void D_Display (fixed_t frac)
 
       ctr_profile_status_us = 0;
 
-      if (V_GetMode() == VID_MODE32)
-        ctr_profile_status_start = svcGetSystemTick();
+      ctr_profile_status_start = svcGetSystemTick();
 #endif
 
 #ifdef __3DS__
@@ -616,16 +611,13 @@ void D_Display (fixed_t frac)
         glDisable(GL_SCISSOR_TEST);
       }
 
-      if (V_GetMode() == VID_MODE32)
-      {
-        ctr_profile_status_us =
-            (unsigned int)(
-                (svcGetSystemTick() -
-                 ctr_profile_status_start) *
-                1000ULL /
-                CPU_TICKS_PER_MSEC
-            );
-      }
+      ctr_profile_status_us =
+          (unsigned int)(
+              (svcGetSystemTick() -
+               ctr_profile_status_start) *
+              1000ULL /
+              CPU_TICKS_PER_MSEC
+          );
 #endif
 
       BorderNeedRefresh = false;

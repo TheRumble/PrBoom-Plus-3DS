@@ -112,6 +112,13 @@ static C3D_FogLut fog_Lut;
 static C3D_MtxStack mtx_modelview, mtx_projection, mtx_texture;
 static C3D_MtxStack *cur_mtxstack;
 
+/*
+ * Statistics collected during the current frame and preserved when
+ * that frame is submitted.
+ */
+static gl_wrapper_stats_t wrapper_stats_current;
+static gl_wrapper_stats_t wrapper_stats_last;
+
 static inline void _update_dirty_render_states(void);
 
 
@@ -450,12 +457,44 @@ void gl_wrapper_select_bottom(void) {
     C3D_FrameDrawOn(hw_screen_bottom);
 }
 
-void gl_wrapper_swap_buffers() {
-    // End frame
+void gl_wrapper_swap_buffers()
+{
+    u64 timing_start;
+
+    /*
+     * Measure command submission and the synchronized start of the
+     * next frame. FrameBegin with SYNCDRAW may wait for GPU work.
+     */
+    timing_start = svcGetSystemTick();
+
     C3D_FrameEnd(0);
 
-    // Start next frame
+    wrapper_stats_current.frame_end_us =
+        (unsigned int)(
+            (svcGetSystemTick() - timing_start) *
+            1000ULL /
+            CPU_TICKS_PER_MSEC
+        );
+
+    timing_start = svcGetSystemTick();
+
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+
+    wrapper_stats_current.frame_begin_us =
+        (unsigned int)(
+            (svcGetSystemTick() - timing_start) *
+            1000ULL /
+            CPU_TICKS_PER_MSEC
+        );
+
+    wrapper_stats_last = wrapper_stats_current;
+    wrapper_stats_current = (gl_wrapper_stats_t){ 0 };
+}
+
+void gl_wrapper_get_last_frame_stats(gl_wrapper_stats_t *stats)
+{
+    if (stats)
+        *stats = wrapper_stats_last;
 }
 
 
@@ -659,6 +698,10 @@ void gl_wrapper_map_lines_end(void)
         0.0f,
         1.0f
     );
+
+    wrapper_stats_current.indexed_draws++;
+    wrapper_stats_current.indexed_indices += index_count;
+    wrapper_stats_current.map_lines += map_line_count;
 
     C3D_DrawElements(
         GPU_TRIANGLES,
@@ -987,6 +1030,8 @@ static inline void _update_dirty_render_states() {
 }
 
 void glBegin(GLenum mode) {
+    wrapper_stats_current.immediate_draws++;
+
     MtxStack_Update(&mtx_modelview);
     MtxStack_Update(&mtx_projection);
     MtxStack_Update(&mtx_texture);
@@ -1047,24 +1092,28 @@ void glTexCoord2fv(const GLfloat *v) {
 }
 
 void glVertex2i(GLint x, GLint y) {
+    wrapper_stats_current.immediate_vertices++;
     C3D_ImmSendAttrib(cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
     C3D_ImmSendAttrib(cur_texcoord[0], cur_texcoord[1], cur_texcoord[2], cur_texcoord[3]);
     C3D_ImmSendAttrib((GLfloat)x, (GLfloat)y, 0.0f, 1.0f);
 }
 
 void glVertex2f(GLfloat x, GLfloat y) {
+    wrapper_stats_current.immediate_vertices++;
     C3D_ImmSendAttrib(cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
     C3D_ImmSendAttrib(cur_texcoord[0], cur_texcoord[1], cur_texcoord[2], cur_texcoord[3]);
     C3D_ImmSendAttrib(x, y, 0.0f, 1.0f);
 }
 
 void glVertex3f(GLfloat x,GLfloat y,GLfloat z) {
+    wrapper_stats_current.immediate_vertices++;
     C3D_ImmSendAttrib(cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
     C3D_ImmSendAttrib(cur_texcoord[0], cur_texcoord[1], cur_texcoord[2], cur_texcoord[3]);
     C3D_ImmSendAttrib(x, y, z, 1.0f);
 }
 
 void glVertex3fv(const GLfloat *v) {
+    wrapper_stats_current.immediate_vertices++;
     C3D_ImmSendAttrib(cur_color[0], cur_color[1], cur_color[2], cur_color[3]);
     C3D_ImmSendAttrib(cur_texcoord[0], cur_texcoord[1], cur_texcoord[2], cur_texcoord[3]);
     C3D_ImmSendAttrib(v[0], v[1], v[2], 1.0f);
