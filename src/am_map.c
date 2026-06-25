@@ -1181,7 +1181,12 @@ static void AM_drawFlineToFB(
 )
 {
 #ifdef __3DS__
-  if (I_BottomScreenIsMap())
+  /*
+   * The screen-aware Bresenham path is only needed by the software
+   * renderer. OpenGL must submit the original clipped line directly
+   * through V_DrawLine and the indexed 3DS batch.
+   */
+  if (I_BottomScreenIsMap() && V_GetMode() != VID_MODEGL)
   {
     int x0 = line->a.x;
     int y0 = line->a.y;
