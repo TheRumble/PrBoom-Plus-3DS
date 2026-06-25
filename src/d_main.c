@@ -488,7 +488,26 @@ void D_Display (fixed_t frac)
 
         glDisable(GL_SCISSOR_TEST);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        /*
+         * Preserve the bottom target between frames so the status
+         * bar can use Doom's incremental widget updates.
+         *
+         * Clear it once when entering a different map.
+         */
+        {
+          static int ctr_bottom_clear_episode = -1;
+          static int ctr_bottom_clear_map = -1;
+
+          if (ctr_bottom_clear_episode != gameepisode ||
+              ctr_bottom_clear_map != gamemap)
+          {
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+            ctr_bottom_clear_episode = gameepisode;
+            ctr_bottom_clear_map = gamemap;
+          }
+        }
 
         glViewport(0, 0, 320, 240);
 
@@ -556,17 +575,6 @@ void D_Display (fixed_t frac)
       R_RestoreInterpolations();
 
 #ifdef __3DS__
-      /*
-       * Restore the current top-eye target before HUD/UI drawing.
-       */
-      if (ctr_gl_bottom_map && i == 0)
-      {
-        gl_wrapper_select_screen(GFX_LEFT);
-        glViewport(0, 0, SCREENWIDTH, SCREENHEIGHT);
-        gld_Set2DMode();
-        glDisable(GL_SCISSOR_TEST);
-      }
-
       u64 ctr_profile_status_start = 0;
 
       ctr_profile_status_us = 0;
@@ -577,10 +585,10 @@ void D_Display (fixed_t frac)
 
 #ifdef __3DS__
       /*
-       * The bottom GL status bar will be added separately after the
-       * automap target and presentation are verified.
+       * Draw the bottom GL status bar during the first-eye pass while
+       * the bottom target is still selected.
        */
-      if (!ctr_gl_bottom_map)
+      if (!ctr_gl_bottom_map || i == 0)
 #endif
       {
         ST_Drawer(
@@ -596,6 +604,18 @@ void D_Display (fixed_t frac)
       }
 
 #ifdef __3DS__
+      /*
+       * Status-bar drawing is now finished. Restore the left top
+       * target before the normal top-screen HUD is drawn.
+       */
+      if (ctr_gl_bottom_map && i == 0)
+      {
+        gl_wrapper_select_screen(GFX_LEFT);
+        glViewport(0, 0, SCREENWIDTH, SCREENHEIGHT);
+        gld_Set2DMode();
+        glDisable(GL_SCISSOR_TEST);
+      }
+
       if (V_GetMode() == VID_MODE32)
       {
         ctr_profile_status_us =

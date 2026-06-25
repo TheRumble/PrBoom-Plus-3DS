@@ -529,7 +529,12 @@ static void ST_refreshBackground(void)
            displayplayer ? (VPT_TRANS | VPT_ALIGN_BOTTOM) : flags);
       }
 #ifdef __3DS__
-      if (I_BottomScreenIsMap())
+      /*
+       * Software mode still copies the status-bar background into the
+       * bottom framebuffer. OpenGL draws it directly into the target.
+       */
+      if (I_BottomScreenIsMap() &&
+          V_GetMode() != VID_MODEGL)
       {
         ST_CopyBackgroundToBottom(
             ST_X + ST_SCALED_OFFSETX,
@@ -1051,6 +1056,11 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
   ST_doPaletteStuff();  // Do red-/gold-shifts from damage/items
 
   if (statusbaron) {
+    /*
+     * OpenGL cannot use the software background-copy operation that
+     * erases old widget graphics during incremental updates. Redraw
+     * the complete status bar so changing numbers do not overlap.
+     */
     if (st_firsttime || (V_GetMode() == VID_MODEGL))
     {
       /* If just after ST_Start(), refresh all */
