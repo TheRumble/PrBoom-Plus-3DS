@@ -124,7 +124,7 @@ static inline void _update_dirty_render_states(void);
  */
 typedef struct
 {
-    u8 color[4];
+    float color[4];
     float x;
     float y;
 } gl_indexed_line_vertex_t;
@@ -239,7 +239,7 @@ static void _init_map_line_batch(void)
     AttrInfo_AddLoader(
         &map_line_attr_info,
         0,
-        GPU_UNSIGNED_BYTE,
+        GPU_FLOAT,
         4
     );
 
@@ -509,8 +509,11 @@ void gl_wrapper_map_line(
     /*
      * Half of a one-pixel line width.
      */
+    /*
+     * 0.8 screen pixels total.
+     */
     inverse_length =
-        0.5f / sqrtf(length_squared);
+        0.4f / sqrtf(length_squared);
 
     normal_x = -dy * inverse_length;
     normal_y =  dx * inverse_length;
@@ -521,31 +524,31 @@ void gl_wrapper_map_line(
     /*
      * Two vertices on each side of the original line.
      */
-    vertex[0].color[0] = red;
-    vertex[0].color[1] = green;
-    vertex[0].color[2] = blue;
-    vertex[0].color[3] = alpha;
+    vertex[0].color[0] = (float)red / 255.0f;
+    vertex[0].color[1] = (float)green / 255.0f;
+    vertex[0].color[2] = (float)blue / 255.0f;
+    vertex[0].color[3] = (float)alpha / 255.0f;
     vertex[0].x = x0 + normal_x;
     vertex[0].y = y0 + normal_y;
 
-    vertex[1].color[0] = red;
-    vertex[1].color[1] = green;
-    vertex[1].color[2] = blue;
-    vertex[1].color[3] = alpha;
+    vertex[1].color[0] = (float)red / 255.0f;
+    vertex[1].color[1] = (float)green / 255.0f;
+    vertex[1].color[2] = (float)blue / 255.0f;
+    vertex[1].color[3] = (float)alpha / 255.0f;
     vertex[1].x = x1 + normal_x;
     vertex[1].y = y1 + normal_y;
 
-    vertex[2].color[0] = red;
-    vertex[2].color[1] = green;
-    vertex[2].color[2] = blue;
-    vertex[2].color[3] = alpha;
+    vertex[2].color[0] = (float)red / 255.0f;
+    vertex[2].color[1] = (float)green / 255.0f;
+    vertex[2].color[2] = (float)blue / 255.0f;
+    vertex[2].color[3] = (float)alpha / 255.0f;
     vertex[2].x = x0 - normal_x;
     vertex[2].y = y0 - normal_y;
 
-    vertex[3].color[0] = red;
-    vertex[3].color[1] = green;
-    vertex[3].color[2] = blue;
-    vertex[3].color[3] = alpha;
+    vertex[3].color[0] = (float)red / 255.0f;
+    vertex[3].color[1] = (float)green / 255.0f;
+    vertex[3].color[2] = (float)blue / 255.0f;
+    vertex[3].color[3] = (float)alpha / 255.0f;
     vertex[3].x = x1 - normal_x;
     vertex[3].y = y1 - normal_y;
 
