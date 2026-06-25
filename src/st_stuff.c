@@ -1023,6 +1023,141 @@ static void ST_drawWidgets(dboolean refresh)
 
 }
 
+#ifdef __3DS__
+/*
+ * The OpenGL V_CopyRect implementation is empty, so individual
+ * widgets cannot restore their old background rectangles.
+ *
+ * For the persistent bottom target, detect visible status-bar changes
+ * and redraw the complete bar only when necessary.
+ */
+static dboolean ST_bottomGLWidgetsChanged(void)
+{
+  static int *last_ready_num = NULL;
+  static int last_ready_data = -1;
+  static int last_armortype = -1;
+  static int last_palette = -999;
+  static int last_displayplayer = -1;
+  static int last_deathmatch = -1;
+  static int last_netgame = -1;
+  static dboolean last_backpack = false;
+
+  dboolean changed = false;
+  int i;
+
+  if (last_ready_num != w_ready.num)
+  {
+    last_ready_num = w_ready.num;
+    changed = true;
+  }
+
+  if (last_ready_data != w_ready.data)
+  {
+    last_ready_data = w_ready.data;
+    changed = true;
+  }
+
+  if (w_ready.num && w_ready.oldnum != *w_ready.num)
+    changed = true;
+
+  for (i = 0; i < 4; i++)
+  {
+    if (w_ammo[i].num &&
+        w_ammo[i].oldnum != *w_ammo[i].num)
+    {
+      changed = true;
+    }
+
+    if (w_maxammo[i].num &&
+        w_maxammo[i].oldnum != *w_maxammo[i].num)
+    {
+      changed = true;
+    }
+  }
+
+  if (w_health.n.num &&
+      w_health.n.oldnum != *w_health.n.num)
+  {
+    changed = true;
+  }
+
+  if (w_armor.n.num &&
+      w_armor.n.oldnum != *w_armor.n.num)
+  {
+    changed = true;
+  }
+
+  for (i = 0; i < 6; i++)
+  {
+    if (w_arms[i].inum &&
+        w_arms[i].oldinum != *w_arms[i].inum)
+    {
+      changed = true;
+    }
+  }
+
+  if (w_faces.inum &&
+      w_faces.oldinum != *w_faces.inum)
+  {
+    changed = true;
+  }
+
+  for (i = 0; i < 3; i++)
+  {
+    if (w_keyboxes[i].inum &&
+        w_keyboxes[i].oldinum != *w_keyboxes[i].inum)
+    {
+      changed = true;
+    }
+  }
+
+  if (w_frags.num &&
+      w_frags.oldnum != *w_frags.num)
+  {
+    changed = true;
+  }
+
+  if (last_armortype != plyr->armortype)
+  {
+    last_armortype = plyr->armortype;
+    changed = true;
+  }
+
+  if (last_backpack != plyr->backpack)
+  {
+    last_backpack = plyr->backpack;
+    changed = true;
+  }
+
+  if (last_palette != st_palette)
+  {
+    last_palette = st_palette;
+    changed = true;
+  }
+
+  if (last_displayplayer != displayplayer)
+  {
+    last_displayplayer = displayplayer;
+    changed = true;
+  }
+
+  if (last_deathmatch != deathmatch)
+  {
+    last_deathmatch = deathmatch;
+    changed = true;
+  }
+
+  if (last_netgame != netgame)
+  {
+    last_netgame = netgame;
+    changed = true;
+  }
+
+  return changed;
+}
+#endif
+
+
 void ST_SetResolution(void)
 {
   st_firsttime = true;
@@ -1061,7 +1196,22 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
      * erases old widget graphics during incremental updates. Redraw
      * the complete status bar so changing numbers do not overlap.
      */
+#ifdef __3DS__
+    {
+      const dboolean bottom_gl =
+          V_GetMode() == VID_MODEGL &&
+          I_BottomScreenIsMap();
+
+      const dboolean bottom_gl_changed =
+          bottom_gl &&
+          ST_bottomGLWidgetsChanged();
+
+      if (st_firsttime ||
+          ((V_GetMode() == VID_MODEGL) && !bottom_gl) ||
+          bottom_gl_changed)
+#else
     if (st_firsttime || (V_GetMode() == VID_MODEGL))
+#endif
     {
       /* If just after ST_Start(), refresh all */
       st_firsttime = false;
@@ -1075,6 +1225,9 @@ void ST_Drawer(dboolean statusbaron, dboolean refresh, dboolean fullmenu)
       if (!fullmenu)
         ST_drawWidgets(false); // update all widgets
     }
+#ifdef __3DS__
+    }
+#endif
   }
 }
 
