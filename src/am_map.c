@@ -2386,17 +2386,33 @@ void AM_Drawer (void)
 #endif // cph - If not overlay mode, clear background for the automap
     V_FillRect(FB, f_x, f_y, f_w, f_h, (byte)mapcolor_back); //jff 1/5/98 background default color
 
-  if (map_textured)
+#ifdef __3DS__
+  /*
+   * On the 3DS OpenGL textured map, draw only the textured
+   * subsectors and the player arrow. The normal line map remains
+   * unchanged when textured-map rendering is disabled.
+   */
+  if (map_textured && V_GetMode() == VID_MODEGL)
   {
     AM_drawSubsectors();
+    AM_drawPlayers();
   }
+  else
+#endif
+  {
+    if (map_textured)
+    {
+      AM_drawSubsectors();
+    }
 
-  if (automapmode & am_grid)
-    AM_drawGrid(mapcolor_grid);      //jff 1/7/98 grid default color
-  AM_drawWalls();
-  AM_drawPlayers();
-  AM_drawThings(); //jff 1/5/98 default double IDDT sprite
-  AM_drawCrosshair(mapcolor_hair);   //jff 1/7/98 default crosshair color
+    if (automapmode & am_grid)
+      AM_drawGrid(mapcolor_grid);      //jff 1/7/98 grid default color
+
+    AM_drawWalls();
+    AM_drawPlayers();
+    AM_drawThings(); //jff 1/5/98 default double IDDT sprite
+    AM_drawCrosshair(mapcolor_hair);   //jff 1/7/98 default crosshair color
+  }
   
 #if defined(GL_DOOM)
   if (V_GetMode() == VID_MODEGL)
