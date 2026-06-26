@@ -765,31 +765,56 @@ void gl_wrapper_map_lines_end(void)
 
 //========== GRAPHICS FUNCTIONS ==========
 
-static inline void _toggle_render_state(GLenum cap, int enable) {
-    switch(cap) {
+static inline void _toggle_render_state(GLenum cap, int enable)
+{
+    switch (cap)
+    {
     case GL_CULL_FACE:
-        cull_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_CULL;
+        if (cull_enable != enable)
+        {
+            cull_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_CULL;
+        }
         break;
+
     case GL_BLEND:
-        blend_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_BLEND;
+        if (blend_enable != enable)
+        {
+            blend_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_BLEND;
+        }
         break;
+
     case GL_DEPTH_TEST:
-        depth_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_DEPTH;
+        if (depth_enable != enable)
+        {
+            depth_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_DEPTH;
+        }
         break;
+
     case GL_ALPHA_TEST:
-        alpha_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_ALPHA;
+        if (alpha_enable != enable)
+        {
+            alpha_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_ALPHA;
+        }
         break;
+
     case GL_SCISSOR_TEST:
-        scissor_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_SCISSOR;
+        if (scissor_enable != enable)
+        {
+            scissor_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_SCISSOR;
+        }
         break;
+
     case GL_FOG:
-        fog_enable = enable;
-        dirty_flags |= DIRTY_FLAGS_FOG;
+        if (fog_enable != enable)
+        {
+            fog_enable = enable;
+            dirty_flags |= DIRTY_FLAGS_FOG;
+        }
         break;
     }
 }
@@ -817,7 +842,11 @@ static inline GPU_CULLMODE _gl_to_c3d_cull(GLenum mode) {
     return ret;
 }
 
-void glCullFace(GLenum mode) {
+void glCullFace(GLenum mode)
+{
+    if (cull_mode == mode)
+        return;
+
     cull_mode = mode;
     dirty_flags |= DIRTY_FLAGS_CULL;
 }
@@ -842,7 +871,14 @@ static inline GPU_BLENDFACTOR _gl_to_c3d_blend(GLenum gl_factor) {
     return ret;
 }
 
-void glBlendFunc(GLenum sfactor, GLenum dfactor) {
+void glBlendFunc(GLenum sfactor, GLenum dfactor)
+{
+    if (blend_sfactor == sfactor &&
+        blend_dfactor == dfactor)
+    {
+        return;
+    }
+
     blend_sfactor = sfactor;
     blend_dfactor = dfactor;
     dirty_flags |= DIRTY_FLAGS_BLEND;
@@ -865,17 +901,32 @@ static inline GPU_TESTFUNC _gl_to_c3d_testfunc(GLenum gl_testfunc) {
     return ret;
 }
 
-void glDepthFunc(GLenum func) {
+void glDepthFunc(GLenum func)
+{
+    if (depth_func == func)
+        return;
+
     depth_func = func;
     dirty_flags |= DIRTY_FLAGS_DEPTH;
 }
 
-void glDepthMask(GLboolean flag) {
+void glDepthMask(GLboolean flag)
+{
+    if (depth_mask == flag)
+        return;
+
     depth_mask = flag;
     dirty_flags |= DIRTY_FLAGS_DEPTH;
 }
 
-void glAlphaFunc(GLenum func, GLclampf ref) {
+void glAlphaFunc(GLenum func, GLclampf ref)
+{
+    if (alpha_func == func &&
+        alpha_ref == ref)
+    {
+        return;
+    }
+
     alpha_func = func;
     alpha_ref = ref;
     dirty_flags |= DIRTY_FLAGS_ALPHA;
@@ -955,19 +1006,51 @@ void glClear(GLbitfield mask) {
     dirty_flags = 0xffffffff;
 }
 
-void glViewport(GLint x, GLint y, GLsizei width, GLsizei height) {
-    viewport_x = y;
-    viewport_y = x;
-    viewport_width = height;
-    viewport_height = width;
-    dirty_flags |= (DIRTY_FLAGS_VIEWPORT | DIRTY_FLAGS_SCISSOR);
+void glViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+{
+    const int new_x = y;
+    const int new_y = x;
+    const int new_width = height;
+    const int new_height = width;
+
+    if (viewport_x == new_x &&
+        viewport_y == new_y &&
+        viewport_width == new_width &&
+        viewport_height == new_height)
+    {
+        return;
+    }
+
+    viewport_x = new_x;
+    viewport_y = new_y;
+    viewport_width = new_width;
+    viewport_height = new_height;
+
+    dirty_flags |=
+        DIRTY_FLAGS_VIEWPORT |
+        DIRTY_FLAGS_SCISSOR;
 }
 
-void glScissor(GLint x, GLint y, GLsizei width, GLsizei height) {
-    scissor_x = y;
-    scissor_y = x;
-    scissor_width = height;
-    scissor_height = width;
+void glScissor(GLint x, GLint y, GLsizei width, GLsizei height)
+{
+    const int new_x = y;
+    const int new_y = x;
+    const int new_width = height;
+    const int new_height = width;
+
+    if (scissor_x == new_x &&
+        scissor_y == new_y &&
+        scissor_width == new_width &&
+        scissor_height == new_height)
+    {
+        return;
+    }
+
+    scissor_x = new_x;
+    scissor_y = new_y;
+    scissor_width = new_width;
+    scissor_height = new_height;
+
     dirty_flags |= DIRTY_FLAGS_SCISSOR;
 }
 

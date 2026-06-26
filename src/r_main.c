@@ -1085,13 +1085,30 @@ void R_ShowStats(void)
         gl_wrapper_get_last_frame_stats(&gl_stats);
 
         doom_printf(
-            "FPS %d M %u.%03u St %u.%03u\n"
-            "End %u.%03u Beg %u.%03u ms",
+            "FPS%d D%u/%u V%u I%u\n"
+            "T%u/%u S%u W%d F%d P%d\n"
+            "M%u.%03u St%u.%03u\n"
+            "E%u.%03u B%u.%03u ms",
             renderer_fps,
+
+            gl_stats.immediate_draws,
+            gl_stats.indexed_draws,
+            gl_stats.immediate_vertices,
+            gl_stats.indexed_indices,
+
+            gl_stats.texture_bind_requests,
+            gl_stats.texture_changes,
+            gl_stats.dirty_state_groups,
+
+            rendered_segs,
+            rendered_visplanes,
+            rendered_vissprites,
+
             ctr_profile_map_us / 1000,
             ctr_profile_map_us % 1000,
             ctr_profile_status_us / 1000,
             ctr_profile_status_us % 1000,
+
             gl_stats.frame_end_us / 1000,
             gl_stats.frame_end_us % 1000,
             gl_stats.frame_begin_us / 1000,
