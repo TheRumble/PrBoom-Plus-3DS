@@ -121,11 +121,7 @@ static void I_UpdateBottomScreenView(void)
       ctr_saved_screenblocks = 10;
     }
 
-    /*
-     * Temporary profiling test:
-     * keep the normal top-screen view size in bottom Map mode.
-     */
-    /* R_SetViewSize(11); */
+    R_SetViewSize(11);
   }
   else if (ctr_previous_map_mode == 1)
   {
