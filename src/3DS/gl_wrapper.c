@@ -92,8 +92,17 @@ static GLfloat cur_texcoord[4];
 static gl_c3d_tex *gl_c3d_tex_base = NULL;
 static gl_c3d_tex *gl_c3d_tex_head = NULL;
 
-// Currently bound GL texture
+// Texture requested by the OpenGL-compatible renderer.
 static gl_c3d_tex *cur_texture = NULL;
+
+/*
+ * Texture most recently submitted to Citro3D.
+ *
+ * The validity flag is cleared at the beginning of every frame so
+ * the first draw always establishes a known GPU texture state.
+ */
+static gl_c3d_tex *bound_texture = NULL;
+static int bound_texture_valid = 0;
 
 int gl_is_inited = 0;
 
@@ -120,6 +129,28 @@ static gl_wrapper_stats_t wrapper_stats_current;
 static gl_wrapper_stats_t wrapper_stats_last;
 
 static inline void _update_dirty_render_states(void);
+
+
+/*
+ * Avoid submitting a redundant texture bind for every glBegin().
+ */
+static inline void _bind_texture_if_needed(gl_c3d_tex *texture)
+{
+    wrapper_stats_current.texture_bind_requests++;
+
+    if (bound_texture_valid && bound_texture == texture)
+        return;
+
+    if (texture)
+        C3D_TexBind(0, &texture->c3d_tex);
+    else
+        C3D_TexBind(0, NULL);
+
+    bound_texture = texture;
+    bound_texture_valid = 1;
+
+    wrapper_stats_current.texture_changes++;
+}
 
 
 /*
@@ -372,6 +403,8 @@ static inline void _release_all_gl_textures() {
     gl_c3d_tex_head = NULL;
 
     cur_texture = NULL;
+    bound_texture = NULL;
+    bound_texture_valid = 0;
 }
 
 void gl_wrapper_cleanup() {
@@ -489,6 +522,12 @@ void gl_wrapper_swap_buffers()
 
     wrapper_stats_last = wrapper_stats_current;
     wrapper_stats_current = (gl_wrapper_stats_t){ 0 };
+
+    /*
+     * The first draw of the next command list establishes the
+     * texture state; later identical binds can then be skipped.
+     */
+    bound_texture_valid = 0;
 }
 
 void gl_wrapper_get_last_frame_stats(gl_wrapper_stats_t *stats)
@@ -561,33 +600,36 @@ void gl_wrapper_map_line(
     index = &map_line_ibo[map_line_count * 6];
 
     /*
+     * Convert the color once per line, then copy it to all four
+     * vertices.
+     */
+    {
+        const float color_r = (float)red / 255.0f;
+        const float color_g = (float)green / 255.0f;
+        const float color_b = (float)blue / 255.0f;
+        const float color_a = (float)alpha / 255.0f;
+
+        for (unsigned int i = 0; i < 4; i++)
+        {
+            vertex[i].color[0] = color_r;
+            vertex[i].color[1] = color_g;
+            vertex[i].color[2] = color_b;
+            vertex[i].color[3] = color_a;
+        }
+    }
+
+    /*
      * Two vertices on each side of the original line.
      */
-    vertex[0].color[0] = (float)red / 255.0f;
-    vertex[0].color[1] = (float)green / 255.0f;
-    vertex[0].color[2] = (float)blue / 255.0f;
-    vertex[0].color[3] = (float)alpha / 255.0f;
     vertex[0].x = x0 + normal_x;
     vertex[0].y = y0 + normal_y;
 
-    vertex[1].color[0] = (float)red / 255.0f;
-    vertex[1].color[1] = (float)green / 255.0f;
-    vertex[1].color[2] = (float)blue / 255.0f;
-    vertex[1].color[3] = (float)alpha / 255.0f;
     vertex[1].x = x1 + normal_x;
     vertex[1].y = y1 + normal_y;
 
-    vertex[2].color[0] = (float)red / 255.0f;
-    vertex[2].color[1] = (float)green / 255.0f;
-    vertex[2].color[2] = (float)blue / 255.0f;
-    vertex[2].color[3] = (float)alpha / 255.0f;
     vertex[2].x = x0 - normal_x;
     vertex[2].y = y0 - normal_y;
 
-    vertex[3].color[0] = (float)red / 255.0f;
-    vertex[3].color[1] = (float)green / 255.0f;
-    vertex[3].color[2] = (float)blue / 255.0f;
-    vertex[3].color[3] = (float)alpha / 255.0f;
     vertex[3].x = x1 - normal_x;
     vertex[3].y = y1 - normal_y;
 
@@ -686,7 +728,7 @@ void gl_wrapper_map_lines_end(void)
         GPU_REPLACE
     );
 
-    C3D_TexBind(0, NULL);
+    _bind_texture_if_needed(NULL);
 
     C3D_SetAttrInfo(&map_line_attr_info);
     C3D_SetBufInfo(&map_line_buf_info);
@@ -718,10 +760,7 @@ void gl_wrapper_map_lines_end(void)
 
     *C3D_GetTexEnv(0) = saved_tex_env;
 
-    if (cur_texture)
-        C3D_TexBind(0, &cur_texture->c3d_tex);
-    else
-        C3D_TexBind(0, NULL);
+    _bind_texture_if_needed(cur_texture);
 }
 
 //========== GRAPHICS FUNCTIONS ==========
@@ -1038,10 +1077,7 @@ void glBegin(GLenum mode) {
 
     _update_dirty_render_states();
 
-    if(cur_texture)
-        C3D_TexBind(0, &cur_texture->c3d_tex);
-    else
-        C3D_TexBind(0, NULL);
+    _bind_texture_if_needed(cur_texture);
 
     switch(mode) {
     case GL_TRIANGLE_STRIP:
@@ -1250,11 +1286,17 @@ void glTexParameteri(GLenum target, GLenum pname, GLint param) {
         cur_texture->c3d_tex.param |= GPU_TEXTURE_MIN_FILTER(_gl_to_c3d_texfilter(param));
         break;
     }
+
+    if (bound_texture_valid && bound_texture == cur_texture)
+        bound_texture_valid = 0;
 }
 
 void glTexImage2D(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels) {
     if(!cur_texture)
         return;
+
+    if (bound_texture_valid && bound_texture == cur_texture)
+        bound_texture_valid = 0;
 
     if(cur_texture->c3d_tex.data) {
         linearFree(cur_texture->c3d_tex.data);
@@ -1293,6 +1335,9 @@ void glCopyTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffse
     if(!cur_texture)
         return;
 
+    if (bound_texture_valid && bound_texture == cur_texture)
+        bound_texture_valid = 0;
+
     u32 *screen = (u32*)gfxGetFramebuffer(GFX_TOP, GFX_LEFT, NULL, NULL);
     u32 *texbuf = (u32*)gl_c3d_tex_head->c3d_tex.data;
 
@@ -1324,6 +1369,12 @@ static inline void _delete_texture(GLuint texture) {
 
     if(gl_delete_tex == cur_texture)
         cur_texture = NULL;
+
+    if (bound_texture_valid && gl_delete_tex == bound_texture)
+    {
+        bound_texture = NULL;
+        bound_texture_valid = 0;
+    }
 
     gl_c3d_tex *prev = gl_delete_tex->prev;
     gl_c3d_tex *next = gl_delete_tex->next;
